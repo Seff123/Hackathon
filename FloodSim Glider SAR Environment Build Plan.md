@@ -15,18 +15,18 @@ Build in the phase order of section 18, run the tests after every phase, and kee
 - After each phase: run `pytest`, add a 2-3 line entry to `PROGRESS.md`, commit with message `phase N: <name>`.
 - If a phase overruns its time budget by more than 50%, ship its listed fallback (section 18), record the shortcut in `ASSUMPTIONS.md`, and move on.
 - When this plan is ambiguous, pick the simpler option and log it in `ASSUMPTIONS.md` rather than stopping to ask.
-- Stretch goals (section 19) only after Phase 9 is complete.
+- Stretch goals (section 19) only after Phase 8 is complete.
 
 **Definition of done**
 
 1. `python -m floodsim demo --seed 0 --out out/` writes an animated GIF of one episode and an interactive 3D HTML view.
 2. `python -m floodsim tune --trials 40 --scenarios 30` writes tuned planner parameters and a chart comparing lawnmower, Bayesian greedy and flood-aware planners on held-out test seeds.
 3. All tests pass.
-4. One episode with 8 drones runs in under about 6 s in fast mode once its world is cached, and the multi-agent smoke test (marl-smoke) passes.
+4. One episode with 8 drones runs in under about 6 s in fast mode once its world is cached.
 
 ## 1. Goals and scope
 
-FloodSim turns a seed into a random but physically plausible flood scenario, so the team can tune a flood-aware Bayesian search planner, and train multi-agent RL policies, for a swarm of 2-8 autonomous motor-glider drones (2076 setting) across hundreds of scenarios.
+FloodSim turns a seed into a random but physically plausible flood scenario, so the team can tune a flood-aware Bayesian search planner for a swarm of 2-8 autonomous motor-glider drones (2076 setting) across hundreds of scenarios.
 
 **What the environment must do**
 
@@ -37,9 +37,9 @@ FloodSim turns a seed into a random but physically plausible flood scenario, so 
 5. Detect people with imperfect thermal cameras, share observations over a limited-range radio, keep Bayesian belief maps, and plan where each drone flies.
 6. Score outcomes by survival-weighted finds, and tune the planner's parameters across scenarios.
 
-**The "model" being trained** is the planner's parameter vector θ (section 13): flood urgency weight, forecast lead time, prior weights, search altitude, soaring thresholds and so on. It is tuned by black-box optimisation over many scenarios. The same environment also exposes a multi-agent RL interface (section 14.1), so the team can train neural swarm policies and compare them with the tuned planner on identical seeds.
+**The "model" being trained** is the planner's parameter vector θ (section 13): flood urgency weight, forecast lead time, prior weights, search altitude, soaring thresholds and so on. It is tuned by black-box optimisation over many scenarios. Neural-network and RL swarm policies can be trained on the same seeds later; that layer is not part of this build.
 
-**Out of scope for the 3-hour build:** running the RL training itself (the build delivers the interface, demo recording and a smoke test), CFD-accurate wind, a game-engine renderer, real map data. Each has a stretch entry in section 19 or a recipe in section 14.1.
+**Out of scope for the 3-hour build:** neural networks, RL training and RL wrappers (to be added later on top of the simulation API), CFD-accurate wind, a game-engine renderer, real map data. Each has a stretch entry in section 19.
 
 ## 2. Assumptions and defaults
 
@@ -53,7 +53,7 @@ These are the choices made where the brief was silent. Each lives in config; cha
 | Time steps | Glider 0.5 s, sensor 2 s, people 10 s, belief prediction 60 s, flood snapshots 60 s | Each process at its natural speed | Physics looks jerky (lower glider step) |
 | Episode | 2.5 h simulated (bounds 2-3 h) | Matches the battery endurance below | Longer missions |
 | Frame | East-North-Up metres, origin at the south-west corner; heading in radians anticlockwise from east | Standard maths convention | Never mid-build |
-| Drone | Motor-glider, about 3.7 m span, 5 kg, 120-250 Wh battery | Battery is tight enough that soaring matters | Different airframe |
+| Drone | Motor-glider, about 3.7 m span; mass and battery capacity are team inputs (placeholders 5 kg, 180 Wh) | Battery is tight enough that soaring matters | Different airframe |
 | Camera | Nadir thermal (LWIR) camera, 1280 × 1024 pixels, 60° field of view; works day and night; cannot see through glass, roofs or dense canopy | Today's SAR drones mostly carry 640 × 512; double the resolution is a modest 2076 step | Different sensor |
 | Altitude limits | Search at 60-150 m above ground; 60 m minimum; 400 m above ground ceiling for transit and soaring | Thermal detection above about 150 m is poor; 400 m still allows thermal climbs and about 8 km still-air glides (assumes a 2076 SAR exemption) | You want today's 120 m limit (soaring then barely works) |
 | Flood types | Fluvial and pluvial (MVP), levee breach (phase 2), coastal surge (stretch) | Covers inland UK-style floods first | Coastal city scenario |
@@ -78,7 +78,7 @@ Arrows pointing down are the only routes by which information reaches the planne
 
 ```
 floodsim/
-  __main__.py      # CLI: scenario, build-cache, demo, evaluate, tune, marl-smoke, record-demos, export-flood-dataset
+  __main__.py      # CLI: scenario, build-cache, demo, evaluate, tune
   config.py        # all dataclasses: Bounds, ScenarioBounds, ScenarioSpec, GliderParams, SensorParams, PlannerParams, SwarmParams, SimConfig
   rng.py           # SeedSequence -> named child streams
   scenario.py      # sample_spec(seed, bounds), rejection checks, build_world(spec)
@@ -95,7 +95,6 @@ floodsim/
   swarm.py         # radio model, observation logs and gossip, task claims, thermal sharing
   planners.py      # Lawnmower, BayesGreedy, FloodAwareBayes (all swarm-aware)
   sim.py           # Sim loop, one PlannerView per drone, EpisodeResult
-  marl_env.py      # PettingZoo ParallelEnv wrapper: observations, action masks, rewards
   metrics.py       # survival score and secondary metrics
   tune.py          # Optuna / random-search tuner, seed splits, parallel runs
   viz.py           # static plots, GIF animation, plotly 3D
@@ -113,7 +112,7 @@ PROGRESS.md  ASSUMPTIONS.md  README.md
 - Randomness: `np.random.SeedSequence(seed).spawn()` gives separate streams named terrain, hydro, flood, weather, people, sensor. Changing one subsystem must not change the others' draws.
 - Anything that varies with time but not with the planner (turbulence sequence, thermal list, storm track) is generated up front at world build, so every planner faces identical conditions (common random numbers).
 
-**Dependencies:** numpy, scipy (ndimage, interpolate, sparse.csgraph, stats.qmc), matplotlib, pytest. Optional: optuna (tuner), plotly (3D HTML), pillow (GIF), pettingzoo (multi-agent interface), torch + stable-baselines3 + supersuit (training smoke test). Every optional import must degrade gracefully.
+**Dependencies:** numpy, scipy (ndimage, interpolate, sparse.csgraph, stats.qmc), matplotlib, pytest. Optional: optuna (tuner), plotly (3D HTML), pillow (GIF). Every optional import must degrade gracefully.
 
 **Performance budget**
 
@@ -194,14 +193,14 @@ The start offset is what puts episodes on the rising limb, at the peak or on the
 | Immobile fraction | 0.2-0.5 | uniform |
 | Walking speed | 0.5-1.3 m/s | uniform |
 | Drift fraction of flow speed when in water | 0.3-0.8 | uniform |
-| Glider mass | 4.5-5.5 kg | uniform |
-| Battery capacity | 120-250 Wh | uniform |
-| Payload power | 20-35 W | uniform |
+| Glider mass | Team input (placeholder 5.0 kg) | fixed |
+| Battery capacity | Team input (placeholder 180 Wh) | fixed |
+| Payload power | 25 W (config) | fixed |
 | Swarm size | 2-8 drones | integer, stratified |
 | Radio range | 1-5 km | uniform |
 | Message loss | 0-30% | uniform |
 | Launch interval | 20-60 s between drones | uniform |
-| Per-drone variation | mass, battery and payload power drawn independently for each drone | within the bounds above |
+| Per-drone variation | None: every drone uses the team's GliderParams | fixed |
 
 **Rejection checks.** After terrain and a cheap HAND-based flood estimate (not the full solver), reject and resample (up to 20 attempts, then widen the failing bound by 10%) if any check fails:
 
@@ -347,7 +346,7 @@ The glider is a quasi-steady 3D point mass: lift balances weight in a banked tur
 
 | Parameter | Default | Notes |
 | --- | --- | --- |
-| Mass m | 5.0 kg | randomised 4.5-5.5 |
+| Mass m | 5.0 kg | team input (placeholder) |
 | Wing area S / span b | 0.90 m² / 3.67 m | aspect ratio 15 |
 | Zero-lift drag C\_D0 | 0.018 |  |
 | Oswald efficiency e | 0.85 | k = 1 / (π e AR) ≈ 0.025 |
@@ -356,11 +355,13 @@ The glider is a quasi-steady 3D point mass: lift balances weight in a banked tur
 | Bank limit / roll rate | 45° (60° for safety manoeuvres) / 45°/s |  |
 | Static thrust / pitch speed | 20 N / 40 m/s | T\_max(V) = 20 (1 − V/40) |
 | Propulsive efficiency η | 0.65 |  |
-| Payload + avionics power | 25 W | randomised 20-35 |
-| Battery | 180 Wh | randomised 120-250 |
+| Payload + avionics power | 25 W | config |
+| Battery | 180 Wh | team input (placeholder) |
 | Reserve on landing | 20% | tunable |
 
-**Sanity numbers these produce** (use as test targets): best glide ratio ≈ 23.6 at ≈ 10.2 m/s, sinking ≈ 0.43 m/s; stall ≈ 8.3 m/s level; sink ≈ 0.55 m/s circling at 35° bank and 10.5 m/s (turn radius ≈ 16 m); full-throttle climb ≈ 2.9 m/s at 12 m/s; level cruise at 14 m/s draws ≈ 79 W, about 2.3 h on 180 Wh.
+**Team inputs.** Mass and battery capacity come from `[glider]` in `configs/default.toml` (`mass_kg`, `battery_wh`) or from `--mass-kg` and `--battery-wh` on the CLI. The placeholders only let the build run before the team picks the airframe. Validate on load (mass 1-25 kg, battery 20-2,000 Wh), and warn if the level stall speed at the given mass exceeds 12 m/s or the predicted endurance falls outside 1-6 h. Wing area stays 0.90 m² unless also set, so a heavier input raises stall and cruise speeds.
+
+**Sanity numbers these produce** (for the 5 kg and 180 Wh placeholders; tests compute their targets from the configured inputs, not from these numbers): best glide ratio ≈ 23.6 at ≈ 10.2 m/s, sinking ≈ 0.43 m/s; stall ≈ 8.3 m/s level; sink ≈ 0.55 m/s circling at 35° bank and 10.5 m/s (turn radius ≈ 16 m); full-throttle climb ≈ 2.9 m/s at 12 m/s; level cruise at 14 m/s draws ≈ 79 W, about 2.3 h on 180 Wh.
 
 **State:** x, y, z (m), true airspeed V (m/s), air-relative heading ψ (rad), bank φ (rad), battery energy E (Wh), flags `stalled`, `crashed`, `landed`.
 
@@ -574,7 +575,7 @@ Drones share **observations, not beliefs**: each drone keeps its own belief grid
 - **Gossip.** Every 10 s each drone sends teammates in range the message ids it holds; they request the ones they lack, including messages relayed from drones now out of range. The base relays too.
 - **Late observations.** Apply a received observation to the current belief as if it happened now, and skip it if its sequence number was already applied. This is a small approximation (prediction steps have moved some mass since) that keeps the code simple. Late detections still go through the P\_real check.
 - **Prediction** runs locally on each drone on the same 60 s clock, so beliefs stay in step when comms are good and drift apart when they are not.
-- **Perfect-comms flag** (`SwarmParams.perfect_comms`) gives every drone one shared belief, for ablations and for the centralised critic in section 14.1.
+- **Perfect-comms flag** (`SwarmParams.perfect_comms`) gives every drone one shared belief, for ablations.
 
 ## 13. Planners
 
@@ -700,29 +701,6 @@ result = sim.run()                                  # EpisodeResult
 
 **`EpisodeResult`**: `spec_hash`, planner name and params, metrics (section 15), trajectory array, finds (person id, time, state at find), verification log, mode time breakdown, energy log, safety events.
 
-### 14.1 Multi-agent RL interface (`marl_env.py`)
-
-A PettingZoo `ParallelEnv` wraps `Sim`, so the team can train neural swarm policies on exactly the same scenarios, physics and information limits as the tuned planner.
-
-- **Agents:** `drone_0` to `drone_7`. The swarm size is drawn per episode (2-8); unused slots are inactive agents (always masked, zero reward), so the agent list stays fixed for vectorised training.
-- **Step:** the env advances the simulation until at least one drone needs a decision (target reached, detection, thermal exit, `replan_s` elapsed). Drones that do not need a decision have only `continue` unmasked. Expect about 150 decisions per drone per episode.
-- **Action:** `Discrete(403)`: one of 400 macro-cells (20 × 20 grid of 500 m), plus `soar`, `verify_last_detection` and `continue`. Return-to-base stays automatic (the safety rule). Mask cells unreachable with the battery reserve and, optionally, cells claimed by teammates the drone has heard from.
-- **Observation per drone:** a dict, every part normalised to roughly \[0, 1\].
-
-| Part | Shape | Contents |
-| --- | --- | --- |
-| Local map | 7 × 24 × 24 | 3 km window at 125 m around the drone: belief 1 − e^(−λ), P\_flood at lead L, expected HR, terrain height, time since last observed, teammates' claims, teammates' positions |
-| Global map | 7 × 20 × 20 | The same channels over the whole domain at macro-cell resolution |
-| Self | 16 | Position, height above ground, airspeed, heading (sin, cos), battery fraction, netto, wind estimate, mode one-hot, time |
-| Teammates | 7 × 8, plus mask | Last-heard relative position, height, battery, claimed cell, age of information, active flag |
-
-- **Centralised critic state:** the perfect-comms belief plus every drone's true state. Only the critic sees this, never the actors (centralised training, decentralised execution).
-- **Team reward each step:** the sum over newly observed cells of p̂\_d × λ × U (expected urgency-weighted finds, scaled to about 1 per episode); + 5 × survival-at-find for each confirmed find; − 5 per crash or collision; − 0.5 per separation breach; − 0.2 per false-alarm verification. Evaluate policies with survival\_at\_risk (section 15), the same metric as the planner.
-- **Training recipe (outside the build):** start with parameter-shared PPO (one network for every drone, so it handles any swarm size) through SuperSuit and Stable-Baselines3; move to MAPPO with the centralised critic (for example BenchMARL or RLlib) for stronger results. Warm-start with behaviour cloning from the tuned planner's demonstrations.
-- **Throughput:** about 1,200 decisions per 8-drone episode at about 6 s each, so roughly 1,600 decisions per second on 8 cores, or about 5 million per hour.
-- **Datasets:** `record-demos --planner flood_aware --params best_params.json --seeds 0-199` writes (observation, action mask, action) tuples for behaviour cloning. `export-flood-dataset` writes (terrain, HAND, current extent, rain) → flooded-in-30-min pairs from the cache for a supervised flood forecaster.
-- **Smoke test (`marl-smoke`):** PettingZoo's `parallel_api_test` for swarm sizes 2, 5 and 8, then 2,000 steps of random masked actions. If torch and stable-baselines3 are installed, also 10,000 steps of parameter-shared PPO.
-
 ## 15. Metrics, objective and tuning
 
 The planner is tuned to maximise mean survival of at-risk people across many scenarios, with penalties for crashes, and judged once on held-out test seeds.
@@ -796,12 +774,9 @@ The demo needs one animated episode and one interactive 3D view; everything else
 ```
 python -m floodsim scenario --seed 3 --plot out/
 python -m floodsim build-cache --seeds 0-199
-python -m floodsim demo --seed 3 --drones 5 --planner flood_aware --params best_params.json --out out/
+python -m floodsim demo --seed 3 --drones 5 --mass-kg 5 --battery-wh 180 --planner flood_aware --params best_params.json --out out/
 python -m floodsim evaluate --params best_params.json --split test
 python -m floodsim tune --trials 60 --scenarios 40 --workers 8
-python -m floodsim marl-smoke
-python -m floodsim record-demos --planner flood_aware --params best_params.json --seeds 0-199
-python -m floodsim export-flood-dataset --seeds 0-199 --lead-min 30
 ```
 
 ## 17. Tests and acceptance
@@ -826,7 +801,7 @@ Each module gets tests that check physics against known answers, so a plausible-
 | weather | Turbulence | Sample std within 10% of target over 1 h |
 | glider | Still-air glide at best-glide speed | Sink = V / (L/D) ± 3% |
 | glider | Steady turn | Radius = V² / (g tan φ) ± 3% |
-| glider | Climb and power | Full-throttle climb 2-4 m/s; 1 h level at 14 m/s uses 79 Wh ± 10% |
+| glider | Climb and power | Full-throttle climb rate matches (T − D)V / mg ± 5%; 1 h of level flight uses the drag-polar energy prediction for the configured mass ± 10% |
 | glider | Stall and crash | Stall flag below stall speed; crash flagged flying into a hill |
 | autopilot | Crosswind transit | Reaches a waypoint 5 km away in a 10 m/s crosswind |
 | autopilot | Thermal centring | Entering 100 m off-centre of a 2 m/s thermal, averages > 1 m/s climb within 3 circles |
@@ -842,13 +817,12 @@ Each module gets tests that check physics against known answers, so a plausible-
 | swarm | Observation sharing | Each observation is applied exactly once per drone; with unlimited range and no loss, every drone's belief equals the perfect-comms belief |
 | swarm | Comms gaps | Beliefs diverge out of range; after reconnection and gossip, every message has been applied once by every drone |
 | planners | Lawnmower partition | Strips cover the floodplain with no gaps, each within 5% of equal area |
-| marl\_env | API and masks | parallel\_api\_test passes for 2, 5 and 8 drones; masked actions are never executed; inactive agents get zero reward |
 
 **Project-level acceptance:** the tuning run completes and produces every output in section 15. Whether the flood-aware planner wins is a result to report, not a test.
 
 ## 18. Build phases (about 3 hours)
 
-Ten phases totalling about 215 minutes (the swarm and RL interface add about 35), each ending with passing tests, a `PROGRESS.md` entry and a commit; every phase has a fallback so the pipeline stays runnable end to end.
+Nine phases totalling about 195 minutes (the swarm adds about 15), each ending with passing tests, a `PROGRESS.md` entry and a commit; every phase has a fallback so the pipeline stays runnable end to end.
 
 | Phase | Budget | Build | Done when | Fallback if over budget |
 | --- | --- | --- | --- | --- |
@@ -861,24 +835,23 @@ Ten phases totalling about 215 minutes (the swarm and RL interface add about 35)
 | 6. People, sensor, belief | 25 min | Sections 10, 11, 12 including 12.1 (shared observations) | Their tests pass | People static except roof transitions; belief without water drift |
 | 7. Planners, sim loop, metrics | 25 min | Sections 13 including 13.1 (claims), 14, 15 (metrics) | Integration tests pass; `demo` GIF for seed 3 | Skip spiral-out; fixed search height |
 | 8. Tuning and demo outputs | 15 min | Section 15 (tuner), section 16 | Small tune run (10 trials × 10 scenarios) writes all outputs; 3D HTML renders | Random search only; matplotlib 3D PNG |
-| 9. Multi-agent RL interface | 20 min | Section 14.1: ParallelEnv, observations, masks, rewards, record-demos, export-flood-dataset | marl-smoke passes for 2, 5 and 8 drones | Fixed 8-drone swarm; random-action smoke test only |
 
 **Order of work inside each phase:** write the dataclass and function signatures, write the tests from section 17, implement until the tests pass, then make the phase's plot and look at it. A plot that looks wrong (water flowing uphill, a glider sinking 5 m/s in still air) is a bug even if tests pass.
 
-**After Phase 9:** run the full tune (section 15 budget), write `README.md` with the demo commands and the headline numbers, then start stretch goals.
+**After Phase 8:** run the full tune (section 15 budget), write `README.md` with the demo commands and the headline numbers, then start stretch goals.
 
 ## 19. Stretch goals
 
-Only after Phase 9, roughly in order of pitch value per hour of work:
+Only after Phase 8, roughly in order of pitch value per hour of work:
 
 1. **Coastal and estuary surge** with 2076 sea-level rise (0.3-1.2 m) and a tide: one domain edge becomes coast with a time-varying water level boundary.
-2. **Heterogeneous swarm**: long-endurance high scouts plus low, slow verifiers with sharper cameras, and a planner or policy that assigns roles.
+2. **Heterogeneous swarm**: long-endurance high scouts plus low, slow verifiers with sharper cameras, and a planner that assigns roles.
 3. **Ridge-soaring mode**: fly figure-eights along windward slopes where the planner's expected ridge lift exceeds 1 m/s.
 4. **Real terrain**: load a GeoTIFF DEM (for example Environment Agency LIDAR or Copernicus) with `rasterio`, and a real river line, for a demo over a real UK town.
-5. **Communication relays**: a drone holds height to relay messages for teammates beyond radio range, chosen by the planner or the learned policy.
+5. **Communication relays**: a drone holds height to relay messages for teammates beyond radio range.
 6. **Full dynamic point-mass model** (flight-path angle as a state, RK4 at 0.05 s) to validate the quasi-steady model.
 7. **Rescue logistics**: a boat with travel time over water, so rescue delay depends on where people are found.
-8. **Learned flood forecaster** trained on the `export-flood-dataset` output, replacing the HAND forecast and compared by Brier score.
+8. **Learning layer (later)**: a multi-agent RL wrapper (PettingZoo) and a learned flood forecaster trained on the cached flood simulations, added when the team starts training.
 
 ## 20. References
 
