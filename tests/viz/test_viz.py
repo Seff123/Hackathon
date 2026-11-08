@@ -46,7 +46,7 @@ def test_bundle_shape(bundles, recorded):
         assert not np.isnan(depth_true).any()
         for key in ("lam", "stake"):
             dbg = [np.asarray(d[key], float) for d in res.recording["debug"] if d and key in d]
-            assert b["grids"][key]["max"] >= max(x.max() for x in dbg) - 1e-9
+            assert b["grids"][key]["max"] >= max(x.max() for x in dbg) - 1e-4   # max is stored to 4 decimals
 
 
 def test_sizes(bundles, tmp_path, recorded):
