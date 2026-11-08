@@ -400,10 +400,14 @@ class FleetBrain:
         if not self.ready:
             return None
         lam = scoring.block_sum(self.belief.intensity(), self.f).astype(np.float16)
-        # "lives at stake" always uses the survival value function, whatever planner is flying
-        if self.urg.t_built is None or int(t // 300) != int(self.urg.t_built // 300):
-            self.urg.update(self.fc, t, self.bias.mean())
-        V0 = self.urg.V[:, 0]
+        # "lives at stake" always uses the survival value function, whatever planner is flying. It has its own
+        # tables: rebuilding the planner's tables here at other times would change what the planner does.
+        if not hasattr(self, "_urg_dbg"):
+            self._urg_dbg = UrgencyTables(self.p, self.horizon)
+        u = self._urg_dbg
+        if u.t_built is None or int(t // 300) != int(u.t_built // 300):
+            u.update(self.fc, t, self.bias.mean())
+        V0 = u.V[:, 0]
         snap = {"t": float(t), "lam": lam,
                 "w": self.belief.w_eff().round(4).tolist(), "count_scale": round(self.belief.count_scale(), 4),
                 "bias_m": round(self.bias.mean(), 4), "wind": [float(a) for a in self.fleet_wind10()],

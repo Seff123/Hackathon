@@ -53,3 +53,6 @@ Implemented with P2-P4: bias posterior from observed extents (test: a +0.3 m bia
 
 ## Viz V0-V6
 Recording hooks (rec_*.npz + events jsonl), deflated uint8 replay bundles (~1 MB per run), one offline HTML page for single replays and side-by-side compares (race line, auto callouts, truth/belief labels, keyboard controls), results charts (PNG + results.html), plotly 3D view with 6 water times and camera presets, pitch assets (compare clip MP4/GIF + key frames). Viz tests pass, including a headless-Chrome smoke screenshot.
+
+## Planner P9: results
+Pipeline (`scripts/run_experiments.py --trials 10`, 104 min): tuned bayes / heuristic / survival on train seeds 0-19 (val 10000-10019), then compare once on test seeds 20000-20099 (97 accepted). Survival-aware vs Bayesian search +0.001 (CI −0.005, +0.008; 8 wins, 6 losses, 83 ties); vs scripted +0.014 (CI −0.013, +0.041). No significant ablation effect. Full numbers in README. Fixed a bug found while exporting the demo: the lives-at-stake debug snapshot rebuilt the planner's own urgency tables, so recorded runs flew differently from unrecorded ones (seed 20013: 0.638 vs 0.550). It now uses separate tables; regression test in tests/viz. Demo seed is now the median among non-tied seeds (20013).

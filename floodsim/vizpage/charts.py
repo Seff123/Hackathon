@@ -57,7 +57,8 @@ def chart_headline(summ, out, svgs, data):
                  if pairs and pairs[0][0].endswith("bayes") else "Paired difference in survival_at_risk", loc="left", fontsize=11, weight="bold")
     ax.set_xlabel(f"difference in survival per at-risk person (ours − other), dot = mean, bar = 95% CI, n = {n} test floods")
     lo_all = min([r["ci_lo"] for r in rows] + [0]) - 0.02
-    hi_all = max([r["ci_hi"] for r in rows] + [0]) + 0.2
+    hi_all = max([r["ci_hi"] for r in rows] + [0])
+    hi_all += 0.9 * (hi_all - lo_all) + 0.01  # room for the labels
     ax.set_xlim(lo_all, hi_all)
     _save(fig, out, "1_headline", svgs)
     data["1_headline"] = rows
@@ -284,7 +285,7 @@ td:first-child,th:first-child{{text-align:left}}.note{{color:#5b6b77}}
 <h1>Does it work? {n} test floods per controller</h1>
 <p class="note">Every controller faced the same {n} random floods (common random numbers): terrain, flood, wind and survivors identical.
 Whiskers and bands show ±1 standard error unless stated; the headline uses 95% intervals on paired differences.
-Demo seed {demo.get('seed', '?')} is the median seed (ours − Bayesian difference closest to the median), not the best.</p>
+Demo seed {demo.get('seed', '?')} is the median seed (median ours − Bayesian difference among the {demo.get('n_non_tied', '?')} floods where the two differ), not the best.</p>
 <section class="card"><h3>Per controller</h3><table><tr><th>Controller</th><th>survival_at_risk</th><th>found fraction</th>
 <th>first find (min)</th><th>at-risk found</th></tr>{ctrl_rows}</table></section>
 {cards}

@@ -165,3 +165,14 @@ def test_smoke_headless(bundles, recorded, tmp_path):
     errs = [l for l in r.stderr.splitlines() if "CONSOLE" in l and ("Uncaught" in l or "Error" in l)]
     assert not errs, errs
     assert shot.exists() and shot.stat().st_size > 50_000
+
+
+def test_recording_does_not_change_planner():
+    """The debug snapshot (lives-at-stake map) must not change what the survival planner does."""
+    from floodsim.runner import run_episode
+    # seed and tuned parameters where the bug showed up (recorded survival 0.638 vs 0.550 unrecorded)
+    kw = {"params": {'beta_travel': 0.8828, 'mu_energy': 0.3118, 'overlap': 0.3338, 'hysteresis': 0.2856, 'replan_s': 111.0325, 'nu_verify': 0.137, 'mobile_fraction': 0.3413, 'scenario_concentration': 13.3834, 't_crit_hat_s': 3832.9131, 'sigma_hr': 0.541, 'tail_factor': 0.8807, 'eps_welfare': 0.015}}
+    a, _ = run_episode(20013, "survival", None, None, None, "cache/", fast=True, record=False, controller_kw=kw)
+    b, _ = run_episode(20013, "survival", None, None, None, "cache/", fast=False, record=True, controller_kw=kw)
+    assert a.metrics["survival_at_risk"] == b.metrics["survival_at_risk"]
+    assert [(f["person"], f["t"]) for f in a.finds] == [(f["person"], f["t"]) for f in b.finds]

@@ -90,3 +90,9 @@
 - results.html embeds matplotlib SVGs generated from the same summary numbers as the PNGs (instead of re-plotting with the template's JS barChart); `charts_data.json` records every plotted number for the chart test.
 - The 40 s backup clip is rendered with matplotlib (two maps + race line) as MP4/GIF; a live screen recording of the HTML page still has to be made by hand.
 - Experiments use a reduced, equal tuning budget per planner (10 trials × 20 training seeds, best 3 re-scored on 20 validation seeds) to fit the night; test seeds are then run once with the tuned parameters. Seeds whose scenario can't be generated within 50 rejection attempts (3 of the 100 test seeds) are recorded and excluded from paired statistics.
+
+## Demo seed among non-tied floods
+83 of 97 test floods end in an exact tie between the survival planner and Bayesian search, so the plain median seed is always a tie in which nothing distinguishes the two. The demo seed is the median ours − Bayesian difference among floods where the two differ (still not the best seed). Recorded in summary.json as `among` and `n_non_tied`.
+
+## Ablation and sweeps use default parameters
+`scripts/run_experiments.py` passes tuned parameters to the main comparison only; ablation, lambda sweep and swarm size use the defaults. Their absolute survival levels therefore differ from the main table; the paired differences within each run are still like-for-like.

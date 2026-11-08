@@ -71,15 +71,22 @@ def summarize(by_ctrl: dict, ours: str = OURS) -> dict:
                 out[split][g]["paired"] = {f"{ours}-{c}": {k: v for k, v in paired(sub[ours], sub[c]).items()
                                                             if k not in ("seeds", "diffs")}
                                            for c in sub if c != ours}
-    # demo seed: ours - bayes difference closest to the median difference (median seed, not best)
+    # demo seed: median ours - bayes difference among seeds where the two differ (median seed, not best);
+    # most seeds tie exactly, and a tied seed shows nothing about the decision
+
     ref = "bayes" if "bayes" in by_ctrl else next((c for c in by_ctrl if c != ours), None)
     if ours in by_ctrl and ref:
         pr = paired(by_ctrl[ours], by_ctrl[ref])
         if pr.get("n"):
             d = np.array(pr["diffs"])
+            seeds = np.array(pr["seeds"])
+            nz = np.abs(d) > 1e-9
+            if nz.any():
+                d, seeds = d[nz], seeds[nz]
             med = float(np.median(d))
             k = int(np.argmin(np.abs(d - med)))
-            out["demo_seed"] = {"seed": int(pr["seeds"][k]), "diff": float(d[k]), "median_diff": med, "vs": ref}
+            out["demo_seed"] = {"seed": int(seeds[k]), "diff": float(d[k]), "median_diff": med, "vs": ref,
+                                "among": "non-tied seeds" if nz.any() else "all seeds", "n_non_tied": int(nz.sum())}
     return out
 
 
