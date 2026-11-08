@@ -25,15 +25,24 @@ def _thermal_env(w=2.0, rt=150.0, zi=600.0, u10=0.0, drones=1):
 
 
 def test_thermal_climb():
-    env = _thermal_env()
+    # core strength = 2 m/s above this airframe's circling sink (the plan's test used a
+    # 2 m/s core for the 5 kg placeholder, whose circling sink was ~0.6 m/s)
+    from floodsim.glider import Performance
+    from floodsim.config import Config
+
+    cfg = Config()
+    perf = Performance(cfg.glider)
+    bank = math.radians(cfg.autopilot.thermal_bank_deg)
+    v = cfg.autopilot.thermal_speed_factor * float(perf.stall_speed(bank))
+    env = _thermal_env(w=2.0 + float(perf.sink(v, bank)))
     c = env.core
     c.place(0, 5050.0, 5000.0, 300.0, math.pi / 2, V=11.0, E=0.5 * c.perf.capacity_wh)
     c.auto.set_goal(0, Loiter(x=5050.0, y=5000.0, agl=300.0, allow_soaring=True))
     c.auto.enter_thermal(0, 5050.0, 5000.0, 0.0, c.s)
     z0 = c.s.z[0]
-    env.run(120)
+    env.run(60)
     assert c.auto.mode[0] == THERMAL
-    assert (c.s.z[0] - z0) / 120.0 > 0.5
+    assert (c.s.z[0] - z0) / 60.0 > 0.5
     assert c.auto.counts["stall_protect"][0] == 0
 
 

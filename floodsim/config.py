@@ -298,11 +298,11 @@ def sample_raw_spec(seed: int, bounds: ScenarioBounds, attempt: int = 0) -> Scen
 
 @dataclass
 class TeamInputs:
-    mass_kg: float = 5.0
+    mass_kg: float = 1.5
     battery_life_min: float = 150.0
     battery_wh: float | None = None  # overrides battery_life_min when set
     charge_time_min: float = 10.0
-    signal_radius_km: float = 3.0
+    signal_radius_km: float = 8.0
     camera_range_m: float = 140.0
 
     def validate(self) -> "TeamInputs":
@@ -416,9 +416,11 @@ class WeatherParams:
 
 @dataclass
 class GliderParams:
-    mass_kg: float = 5.0
-    wing_area_m2: float = 0.90
-    span_m: float = 3.67
+    # Team airframe (2026-11-08): 1.5 kg, 1 m span, best glide at 15 m/s. Wing area is
+    # solved from V_md = 15 m/s with the drag polar below; thrust keeps T/W ~0.29.
+    mass_kg: float = 1.5
+    wing_area_m2: float = 0.237
+    span_m: float = 1.0
     cd0: float = 0.018
     oswald: float = 0.85
     cl_max: float = 1.3
@@ -426,14 +428,14 @@ class GliderParams:
     v_max: float = 30.0
     bank_limit_deg: float = 45.0
     bank_limit_safety_deg: float = 60.0
-    thrust_max_n: float = 14.0
+    thrust_max_n: float = 4.2
     prop_eff: float = 0.65
-    payload_w: float = 25.0
+    payload_w: float = 10.0
     battery_life_min: float = 150.0
     battery_wh: float | None = None
     reserve_frac: float = 0.20
-    v_ref: float = 13.0
-    climb_speed: float = 12.0
+    v_ref: float = 15.0  # battery life is quoted at the 15 m/s cruise
+    climb_speed: float = 15.0
     rho: float = 1.225
     g: float = 9.81
     table_v_step: float = 0.5

@@ -29,8 +29,8 @@ def test_still_air_glide_at_best_glide_speed():
     _, tr = fly(v_md, 0.0, 0.0, 60)
     sink = -(tr[-1, 2] - tr[0, 2]) / 59
     assert sink == pytest.approx(v_md / ld, rel=0.03)
-    # sanity numbers for the 5 kg placeholder
-    assert ld == pytest.approx(23.6, rel=0.01) and v_md == pytest.approx(10.2, rel=0.02)
+    # the team airframe is sized for best glide at its 15 m/s cruise
+    assert v_md == pytest.approx(GP.v_ref, rel=0.02)
 
 
 def test_steady_turn_radius():
@@ -49,7 +49,6 @@ def test_climb_rate_and_level_energy():
     climb = (tr[-1, 2] - tr[0, 2]) / 29
     expect = (GP.thrust_max_n - float(GP.drag(V))) * V / GP.weight_n
     assert climb == pytest.approx(expect, rel=0.05)
-    assert expect == pytest.approx(2.9, rel=0.05)
     V = 14.0
     s, tr = fly(V, 0.0, float(PERF.level_throttle(V)), 3600)
     used = PERF.capacity_wh - s.E[0]
@@ -58,7 +57,7 @@ def test_climb_rate_and_level_energy():
     assert abs(tr[-1, 2] - tr[0, 2]) < 1.0
 
 
-@pytest.mark.parametrize("mass", [3.0, 5.0, 10.0, 15.0])
+@pytest.mark.parametrize("mass", [1.0, 1.5, 2.0, 3.0])
 def test_battery_life_input(mass):
     gp = GliderParams.from_team(TeamInputs(mass_kg=mass, battery_life_min=150.0))
     perf = Performance(gp)

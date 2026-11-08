@@ -26,3 +26,6 @@ Sim with per-process clocks (1 s flight/radio, 2 s sensing, 10 s people), Planne
 
 ## Phase 8: visualisation and demo
 Coverage plot, 2 x 2 demo GIF (30 s frames, shared 64-colour palette, ~0.6 MB), plotly 3D HTML (terrain, water, mode-styled paths, radio links, thermal columns; matplotlib fallback), episode report; `demo` and `evaluate` commands (episodes.csv, scenarios.csv, summary.json). Fixed swarm launch/separation issues found by the 50-seed sweep (catapults spaced around the launch orbit and fired 20 s apart, wind-aware launch climb, cluster-based vertical separation, geofence overrides avoidance). 50-seed sweep: 0 crashes, collisions, breaches, forced landings or geofence violations; survival_at_risk 0.80 +/- 0.04. 70 passed, 1 xfail (soft timing). README written.
+
+## Team inputs update (2026-11-08)
+Mass 1.5 kg, radio 8 km, cruise/battery reference 15 m/s, airframe 1 m span with best glide at 15 m/s; derived wing area 0.237 m^2, thrust 4.2 N, payload 10 W (~93 Wh battery). Airframe-specific tests now derive targets from config. 70 passed, 1 xfail (soft timing). 50-seed sweep: 0 crashes/collisions/forced landings/geofence violations, 2 separation breaches (verification orbits); survival_at_risk 0.80.

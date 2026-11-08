@@ -51,12 +51,16 @@ def test_team_validation():
 
 def test_battery_from_life():
     cfg = Config()
-    assert 170 < cfg.glider.battery_capacity_wh < 190  # ~180 Wh at 5 kg / 150 min
+    gp = cfg.glider
+    p_ref = float(gp.drag(gp.v_ref)) * gp.v_ref / gp.prop_eff + gp.payload_w
+    assert gp.battery_capacity_wh == pytest.approx(cfg.team.battery_life_min / 60 * p_ref)
+    assert 85 < gp.battery_capacity_wh < 100  # ~93 Wh for the 1.5 kg / 1 m team airframe
 
 
 def test_load_default_toml():
-    cfg = load_config(ROOT / "configs" / "default.toml", team={"mass_kg": 6.0})
-    assert cfg.team.mass_kg == 6.0 and cfg.glider.mass_kg == 6.0
+    cfg = load_config(ROOT / "configs" / "default.toml", team={"mass_kg": 2.0})
+    assert cfg.team.mass_kg == 2.0 and cfg.glider.mass_kg == 2.0
+    assert cfg.glider.span_m == 1.0 and cfg.team.signal_radius_km == 8.0
     cfg = load_config(None, bounds={"n_drones": 4})
     assert cfg.bounds.n_drones.lo == cfg.bounds.n_drones.hi == 4
 

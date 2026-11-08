@@ -2,13 +2,24 @@
 # floodsim/config.py; uncomment and edit to change one.
 
 [team]
-# Placeholders: set these from the team's airframe before tuning.
-mass_kg = 5.0
-battery_life_min = 150.0      # level flight at 13 m/s on a full battery
-# battery_wh = 180.0          # set instead of battery_life_min if known
-charge_time_min = 10.0        # battery swap at base
-signal_radius_km = 3.0        # radio range, drone-drone and drone-base
-camera_range_m = 140.0        # 50% detection height for a person on land
+mass_kg = 1.5                 # team value (2026-11-08)
+battery_life_min = 150.0      # placeholder: level flight at the 15 m/s cruise on a full battery
+# battery_wh = 93.0           # set instead of battery_life_min if known
+charge_time_min = 10.0        # placeholder: battery swap at base
+signal_radius_km = 8.0        # team value (2026-11-08): radio range, drone-drone and drone-base
+camera_range_m = 140.0        # placeholder: 50% detection height for a person on land
+
+[glider]
+# Team airframe: 1 m span, best glide (and cruise) 15 m/s. The rest is derived:
+# wing area from best glide at 15 m/s with cd0 0.018 and e 0.85 (aspect ratio 4.2,
+# L/D 12.5, stall 8.8 m/s); thrust 4.2 N keeps thrust/weight ~0.29 (3.1 m/s climb
+# at 15 m/s); payload + avionics 10 W. 150 min at 15 m/s -> ~93 Wh battery.
+span_m = 1.0
+wing_area_m2 = 0.237
+thrust_max_n = 4.2
+payload_w = 10.0
+v_ref = 15.0
+climb_speed = 15.0
 
 # [bounds]
 # relief_m = [20, 300, "loguniform"]

@@ -37,7 +37,7 @@ Team inputs can be set on the command line or in `[team]` in `configs/default.to
 --mass-kg 5 --battery-life-min 150 --charge-time-min 10 --signal-radius-km 3 --camera-range-m 140
 ```
 
-These values are still the plan's placeholders. Every other number is a dataclass default in `floodsim/config.py` and can be overridden from TOML.
+Team values: mass 1.5 kg, radio range 8 km, cruise (and battery-life reference) 15 m/s, airframe 1 m span with best glide at 15 m/s. The rest of the airframe is derived from those (`[glider]` in `configs/default.toml`, details in `ASSUMPTIONS.md`): 0.237 m² wing, glide ratio 12.5, stall 8.8 m/s, 4.2 N thrust, 10 W payload, about 93 Wh battery. Battery life (150 min), charge time and camera range are still the plan's placeholders. Every other number is a dataclass default in `floodsim/config.py` and can be overridden from TOML.
 
 Worlds are cached in `cache/<spec_hash>.npz` (0.4-4 MB each, about 0.15 s to load). Building one uncached takes 1.5-3 s, mostly the flood solver; seeds that fail rejection checks take longer.
 
@@ -64,19 +64,19 @@ Current status: 70 passed, 1 xfailed. The xfail is the soft timing budget (see K
 
 ## Headline numbers
 
-Scripted sweep controller, seeds 0-49, sampled swarm sizes 2-8, 2.5 h episodes, placeholder team inputs.
+Scripted sweep controller, seeds 0-49, sampled swarm sizes 2-8, 2.5 h episodes, team airframe (1.5 kg, 1 m span, 8 km radio).
 
 | | |
 | --- | --- |
 | Flood types | 23 fluvial + pluvial, 18 fluvial, 7 pluvial, 2 levee breach |
 | Peak flood extent | 3.2-16.5 % of land (mean 6.7 %) |
 | Wind at 10 m / 300 m | mean 4.4 / 7.7 m/s (max 13.3 at 300 m) |
-| Thermals | 1-30 per scenario, w* mean 0.52 m/s; soaring share 0.5 % of airborne time |
+| Thermals | 1-30 per scenario, w* mean 0.52 m/s; soaring share 1.4 % of airborne time (circling sink ~1.4 m/s) |
 | Detections | 16 per drone-hour, 2.7 % true (false alarms dominate, λ_fa = 0.002 per cell per frame) |
 | survival_at_risk | 0.80 ± 0.04 (mean ± SE) |
-| Found fraction | 0.11 ± 0.02; time to first find 90 min mean (censored at 150 min) |
-| Area observed | 18.4 km² per episode on average |
-| Safety | 0 crashes, 0 mid-air collisions, 0 separation breaches, 0 forced landings, 0 geofence violations |
+| Found fraction | 0.09 ± 0.01; time to first find 76 min mean (censored at 150 min) |
+| Area observed | 18.2 km² per episode on average; 347 Wh used per episode |
+| Safety | 0 crashes, 0 mid-air collisions, 0 forced landings, 0 geofence violations; 2 separation breaches in 50 episodes (both during verification orbits, avoidance active) |
 
 The scripted controller is deliberately naive: it verifies every detection, so most of its time goes on false alarms. It exists to exercise the environment, not as a baseline to beat.
 
