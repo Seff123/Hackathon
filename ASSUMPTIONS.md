@@ -45,3 +45,26 @@
 
 ### Weather (phase 4)
 - Thermal background sink (≈ −0.01 m/s) is omitted. Hotspots are checked by a vectorised distance over all of them (at most 30) instead of a spatial grid.
+
+### Glider, autopilot and safety (phase 5)
+- The autopilot runs per drone in scalar Python (at most 8 drones); physics and separation are vectorised across drones.
+- The autopilot uses the drone's own wind estimate (10 m reference vector + fixed N(0, 1 m/s) error per component per drone, scaled with the log law to its height), never the true wind.
+- Orbits (thermal, verify, base) use a vector-field orbit tracker with a bank feed-forward instead of a fixed bank, so circles hold their position in wind. Thermal circling uses a 40 m orbit around the point where lift was first felt, at 1.2 × stall speed at 35° bank (no centring).
+- The soaring height limit (below ceiling − 100 m) is checked when lift is first felt; "next transit needs more height" is not modelled.
+- Search altitude hold targets the highest surface at 0, 5 and 10 s ahead + the search height; more than 20 m high → glide down at 20 m/s; more than 30 m low → full-throttle climb.
+- RTB flight: level at ≥ 80 m above the surface/base until high enough to glide home with a 25% margin, then glide; within 300 m of base a 70 m descending orbit, landing on touch-down within 100 m. The return-energy rule is skipped while a glide home is possible *and* the battery is above reserve + 2%.
+- The geofence turns back only when the drone is within 300 m of the boundary, heading outward and predicted to leave the domain within 10 s (latched 15 s). Without the prediction, waypoints near the edge made the geofence and the mode fight and the drone drift out.
+- Launch: drones launched together hold over the base (150 m orbit, 80 m above base) for 20 s × launch slot before climbing straight out, so departures are spaced.
+- Separation: conflicts start inside 300 m horizontally and 40 m vertically, or when the closest point of approach within 20 s is inside 300 m; they last until the pair is 400 m apart horizontally. Who is above is latched when the conflict starts; the upper drone gets an altitude floor 50 m above the lower one's effective altitude (floors propagate up through clusters). Drones never get pushed down, so avoidance can't drive them into terrain. The upper drone turns right while closing within 40 m vertically; both turn right while within 25 m vertically. Avoidance also runs inside the base zone (except for drones holding before departure or on final approach); breaches and collisions are only counted outside it. A separation floor overrides the ceiling throttle cut. With these rules, 50 random 8-drone runs show no breaches.
+
+### People, sensor, radio (phase 6)
+- The footprint radius uses the camera height above the terrain at the nadir point. True detections use the camera range to each person (roof height for people at home or on roofs).
+- Verification matches the nearest unfound person within 75 m of the verified cell centre (people may have moved since the detection).
+- A person swept off the map has survival 0.
+- "At risk" (ever affected) is also tracked for people after they are found: whether the water later reaches the place they were found. Without this, finding someone before the water arrives would remove them from the at-risk set and could *lower* survival_at_risk.
+- The radio delivers to nodes in direct range; `connected_to_base` (multi-hop) is exposed for the planner's base_relay comms.
+
+### Sim and metrics (phase 7)
+- Time to first find / mean time to find are reported as the episode length when nobody is found, so every metric is finite.
+- The rain-radar estimate in the view is the true storm rain (100 m, mm/h) × one scenario-wide factor (1 ± 0.2 N), refreshed every 5 min.
+- PlannerView exposes `n_hat`, `episode_end_s`, `horizon_s`, `connected_to_base` and the drone's own autopilot status (mode, goal kind, waypoint index, E_return).
