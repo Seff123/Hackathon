@@ -393,6 +393,7 @@ class ForecastParams:
     pluvial_accum_cells: float = 25.0
     pluvial_min_depression_m: float = 0.1
     floodplain_hand_m: float = 10.0  # Brier is scored over this zone
+    dry_stage_m: float = -0.5  # stage given to a dry drainage cell before noise
 
 
 @dataclass

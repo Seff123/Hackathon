@@ -100,6 +100,8 @@ def _load(spec: ScenarioSpec, cfg: Config, path: Path) -> World | None:
     fc = {k[3:]: v for k, v in arrs.items() if k.startswith("fc_")}
     wx = {k[3:]: v for k, v in arrs.items() if k.startswith("wx_")}
     _attach_products(w, fc or None, wx or None)
+    if (w.forecast is not None and not fc) or (w.weather is not None and not wx):
+        _save(w, path)  # cache predates a product module: add the product
     return w
 
 
