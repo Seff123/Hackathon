@@ -337,6 +337,8 @@ class WorldConfig:
     floodplain_frac: float = 0.6  # inner share of the valley half-width blended flat
     centreline_noise_m: float = 0.3
     min_river_slope: float = 0.0005
+    max_pond_depth_m: float = 0.5  # closed depressions deeper than this are partly filled
+    prefill_eps_m: float = 0.025  # per-cell gradient given to filled basins (slope 0.0005)
     river_start_jitter: float = 0.3
     river_margin_m: float = 400.0
     drainage_area_km2: float = 1.0
