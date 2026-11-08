@@ -4,7 +4,7 @@
 
 - The camera is assumed stabilised (gimballed), so banking does not affect detection, even at 35-45° in turns.
 - Thermals can sit over floodwater; only the river channel gets zero weight.
-- Soaring rarely pays off: flood weather is cloudy, the median w* is about 0.6 m/s, and a typical thermal core (about 0.7 m/s) barely beats the circling sink (about 0.6 m/s).
+- Soaring rarely pays off: flood weather is cloudy, the median w* is about 0.6 m/s, and a typical thermal core (about 0.7 m/s) is weaker than the team airframe's circling sink (about 1.4 m/s at 35 deg bank; it was about 0.6 m/s for the plan's 5 kg placeholder).
 - Wind is constant per scenario, with one roughness everywhere and no turbulence or gusts.
 - Episodes run in daylight only.
 - The radio is range-only: no terrain blocking, loss or latency.
