@@ -137,7 +137,7 @@ class Sim:
         self.verify_fa_time = 0.0
         self.relaunches: list = []
         self.verify_started = {}
-        self.snapshots = {"t": [], "seen": []}
+        self.snapshots = {"t": [], "seen": [], "px": [], "py": [], "pstate": [], "pfound": []}
         self.log_dt = self.sc.fast_log_dt_s if self.sc.fast else self.sc.log_dt_s
         self.traj = {k: [] for k in ("t", "x", "y", "z", "V", "phi", "E", "mode", "netto")}
 
@@ -200,8 +200,12 @@ class Sim:
         views = {i: self.view(i, 0.0) for i in range(n)}
         goals = self.controller.reset(views)
         self._apply_goals(goals, views, 0.0)
-        for i in range(n):
+        # one catapult crew: drones launch in id order, launch_stagger_s apart
+        stagger = self.cfg.autopilot.launch_stagger_s
+        pending_launch = {i: i * stagger for i in range(n)}
+        for i in [k for k, tl in pending_launch.items() if tl <= 0.0]:
             fl.launch(i, 0.0)
+            pending_launch.pop(i)
         t = 0.0
         dt = sc.dt_s
         sensor_every = int(round(sc.sensor_dt_s / dt))
@@ -251,6 +255,9 @@ class Sim:
             # people
             if step % people_every == 0:
                 self.people.step(t, self.world.flood, sc.people_dt_s)
+            for i in [k for k, tl in pending_launch.items() if t >= tl]:
+                fl.launch(i, t)
+                pending_launch.pop(i)
             # battery swap and relaunch
             for i in np.nonzero(t >= self.ready_t)[0]:
                 self.ready_t[i] = np.inf
@@ -276,7 +283,11 @@ class Sim:
                 self._log(t)
             if self.sc.record_grids and not self.sc.fast and step % snap_every == 0:
                 self.snapshots["t"].append(t)
-                self.snapshots["seen"].append(self.seen_count.astype(np.uint16).copy())
+                self.snapshots["seen"].append(np.minimum(self.seen_count, 65535).astype(np.uint16))
+                self.snapshots["px"].append(self.people.x.copy())
+                self.snapshots["py"].append(self.people.y.copy())
+                self.snapshots["pstate"].append(self.people.state.copy())
+                self.snapshots["pfound"].append(self.people.found.copy())
             # termination
             if self.retired.all() or (~self.people.active).all():
                 break

@@ -539,6 +539,7 @@ class AutopilotParams:
     forced_landing_agl_m: float = 30.0
     launch_release_m: float = 30.0  # catapult release height above the pad
     launch_orbit_m: float = 80.0
+    launch_stagger_s: float = 20.0  # one catapult: drones launch this far apart, in id order
     launch_orbit_climb_m: float = 60.0  # spiral up to this height above the base before heading out
     crosswind_margin: float = 5.0  # transit airspeed >= |crosswind| + this
     climb_headwind_margin: float = 8.0  # band climbs at max(climb_speed, headwind + this)

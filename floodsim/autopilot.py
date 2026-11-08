@@ -76,6 +76,7 @@ class Autopilot:
         # rtb
         self.rtb_phase = np.zeros(n, np.int64)
         self.launch_phase = np.zeros(n, np.int64)
+        self.launch_t = np.zeros(n)
         # thermal
         self.netto_count = np.zeros(n)
         self.lift_x, self.lift_y = z.copy(), z.copy()
@@ -194,6 +195,7 @@ class Autopilot:
         """Drone i leaves the pad: climb straight out towards its pending goal."""
         self.mode[i] = LAUNCH
         self.launch_phase[i] = 0
+        self.launch_t[i] = t
         # spiral up over the pad first (bases can sit on slopes), then head out
         self._orbit(i, self.base[0], self.base[1], self.ap.launch_orbit_m)
         self.alt[i] = A_CLIMB
@@ -221,7 +223,7 @@ class Autopilot:
     def in_base_zone(self, s: GliderState):
         d = np.hypot(s.x - self.base[0], s.y - self.base[1])
         near = d < self.ap.base_zone_r_m
-        traffic = ((self.mode == RTB_M) & (self.rtb_phase == 1)) | (self.mode == LAUNCH)
+        traffic = ((self.mode == RTB_M) & (self.rtb_phase == 1)) | ((self.mode == LAUNCH) & (self.launch_phase == 0))
         return near & ((s.z - self.base_z < self.ap.base_zone_h_m) | traffic)
 
     def battery_frac(self, s):
@@ -339,7 +341,9 @@ class Autopilot:
         # climb / descend / glide
         clim = self.alt == A_CLIMB
         tau = np.where(clim, 1.0, tau)
-        V = np.where(clim, perf.gp.climb_speed, V)
+        # climb faster than the wind so the launch orbit holds position
+        v_cl = _clip(np.hypot(ue, ve) + ap.crosswind_margin, perf.gp.climb_speed, perf.fast_climb_speed)
+        V = np.where(clim, v_cl, V)
         desc = self.alt == A_DESCEND
         V = np.where(desc, ap.rtb_orbit_speed, V)
 
@@ -355,6 +359,13 @@ class Autopilot:
             V = np.where(up, perf.fast_climb_speed, V)
             tau = np.where(dn, 0.0, tau)
             V = np.where(dn, np.maximum(V, ap.band_fast_speed), V)
+
+        # the geofence is part of the safety layer: it overrides separation headings too
+        if (geo & av).any():
+            ga = geo & av
+            chi_c = np.arctan2(cy, cx)
+            wcg = -ue * np.sin(chi_c) + ve * np.cos(chi_c)
+            psi_d = np.where(ga, chi_c - np.arcsin(_clip(wcg / V_now, -1, 1)), psi_d)
 
         # ---- bank
         err = wrap(psi_d - s.psi)
@@ -426,10 +437,14 @@ class Autopilot:
         dwp = np.hypot(self.tx - x, self.ty - y)
 
         # launch: orbit climb over the pad, then straight out to the transit layer
+        # each drone spirals up to its own transit layer (layers are 50 m apart by id)
+        climb_to = np.maximum(self.ap.launch_orbit_climb_m, self.default_band(np.arange(self.n))[0])
         for i in np.nonzero(act & (mode == LAUNCH) & (self.launch_phase == 0) &
-                            (z - self.base_z >= self.ap.launch_orbit_climb_m))[0]:
-            self.launch_phase[i] = 1
+                            (z - self.base_z >= climb_to))[0]:
+            # leave the orbit only when pointing at the goal, so drones peel off at
+            # different points and times instead of crossing over the pad
             tx, ty = self._goal_point(self.pending[i], s, i)
+            self.launch_phase[i] = 1
             self._waypoint(i, tx, ty)
         for i in np.nonzero(act & (mode == LAUNCH) & (self.launch_phase == 1) &
                             (h_surf >= self.default_band(np.arange(self.n))[0] - 10))[0]:
@@ -584,7 +599,10 @@ class Autopilot:
     # ------------------------------------------------------------------ separation
     def _separation(self, t, s: GliderState, act):
         ap = self.ap
-        ok = act & ~self.bz
+        # avoid everyone except pad traffic (launching or in the landing orbit); the base-zone
+        # exemption applies only to breach counting, so pairs never enter it already in conflict
+        traffic = ((self.mode == LAUNCH) & (self.launch_phase == 0)) | ((self.mode == RTB_M) & (self.rtb_phase == 1))
+        ok = act & ~(traffic & self.bz)
         idx = np.nonzero(ok)[0]
         if len(idx) < 2:
             return
@@ -629,12 +647,32 @@ class Autopilot:
                 bx, by = bx + rx[a] / n * 1.5, by + ry[a] / n * 1.5
             self.avoid_psi[k] = math.atan2(by, bx)
             self.avoid_until[k] = t + ap.sep_hold_s
-        for a, b in zip(*np.nonzero(np.triu(conf))):
-            i, j = int(idx[a]), int(idx[b])  # i < j: j is the higher id
-            # the higher id also moves to 50 m vertically away from the other (tracked each step)
-            # climbing is ~3x faster than a glide descent, so climb unless near the ceiling
-            gnd_j = float(self.ground_at(s.x[j:j + 1], s.y[j:j + 1])[0])
-            room = (s.z[i] + ap.sep_dz_m - gnd_j) < self.ceiling - 20
-            self.avoid_z[j] = s.z[i] + ap.sep_dz_m if room else s.z[i] - ap.sep_dz_m
+        # vertical: within each connected conflict cluster the lowest id keeps its height and
+        # the others stack 50 m apart above the cluster's lowest drone, in id order (the plan's
+        # "higher id moves 50 m away", generalised so three-way conflicts cannot share a height)
+        m = len(idx)
+        comp = -np.ones(m, np.int64)
+        c_id = 0
+        for a0 in range(m):
+            if comp[a0] >= 0 or not conf[a0].any():
+                continue
+            stack = [a0]
+            comp[a0] = c_id
+            while stack:
+                a = stack.pop()
+                for b in np.nonzero(conf[a] | conf[:, a])[0]:
+                    if comp[b] < 0:
+                        comp[b] = c_id
+                        stack.append(b)
+            c_id += 1
+        for c in range(c_id):
+            mem = np.nonzero(comp == c)[0]  # ascending index = ascending drone id
+            ids = idx[mem]
+            z0 = float(s.z[ids].min())
+            gnd = float(self.ground_at(s.x[ids], s.y[ids]).max())
+            top = z0 + ap.sep_dz_m * (len(ids) - 1)
+            shift = max(0.0, top - (gnd + self.ceiling - 20))
+            for k, d in enumerate(ids[1:], start=1):
+                self.avoid_z[d] = z0 + ap.sep_dz_m * k - shift
         done = self.avoid_until < t
         self.avoid_z = np.where(done, np.nan, self.avoid_z)

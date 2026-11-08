@@ -1,0 +1,296 @@
+"""Episode visuals (re-exported by viz.py): coverage plot, demo GIF, 3D HTML, report."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from .viz import DRONE_COLORS, _extent, _save_gif, terrain_rgb
+
+MODE_STYLE = {  # mode name -> (line style, width): solid search, dashed transit, dotted thermal, thick verify
+    "SEARCH": ("-", 1.2), "TRANSIT": ("--", 1.0), "LAUNCH": ("--", 1.0), "RTB": ("--", 1.0),
+    "LOITER": ("--", 1.0), "THERMAL": (":", 1.2), "VERIFY": ("-", 2.6),
+}
+STATE_COLORS = ["#ff9900", "#ff3300", "#cc00cc", "#ffff00", "#00cc00", "#00ffff", "#555555"]
+
+
+def _coverage_rgba(seen, n):
+    rgba = np.zeros((n, n, 4))
+    m = np.asarray(seen).reshape(n, n) > 0
+    rgba[m] = (0.85, 0.0, 0.85, 0.45)
+    return rgba
+
+
+def _flood_rgba(d):
+    rgba = plt.get_cmap("Blues")(np.clip(d / 3.0, 0.15, 1.0))
+    rgba[..., 3] = np.clip(d / 0.5, 0, 0.85) * (d > 0.02)
+    return rgba
+
+
+def plot_coverage(result, world, t=None, path=None, ax=None):
+    """Drone tracks (style by mode), area covered so far, detections (green circle true, black x false)."""
+    from .autopilot import MODE_NAMES
+
+    terr = world.terrain
+    tr = result.trajectory
+    t = tr["t"][-1] if t is None else t
+    own = ax is None
+    if own:
+        fig, ax = plt.subplots(figsize=(7, 7))
+    ext = _extent(terr.n, terr.cell_size)
+    grey = terrain_rgb(terr).mean(axis=2, keepdims=True).repeat(3, 2)
+    ax.imshow(grey, origin="lower", extent=ext)
+    snaps = result.snapshots
+    if len(snaps.get("t", [])):
+        k = int(np.searchsorted(snaps["t"], t, side="right")) - 1
+        if k >= 0:
+            ax.imshow(_coverage_rgba(snaps["seen"][k], terr.n), origin="lower", extent=ext)
+    keep = tr["t"] <= t
+    for i in range(result.n_drones):
+        x = tr["x"][keep, i] / 1000
+        y = tr["y"][keep, i] / 1000
+        modes = tr["mode"][keep, i]
+        col = DRONE_COLORS[i % len(DRONE_COLORS)]
+        start = 0
+        for j in range(1, len(x) + 1):
+            if j == len(x) or modes[j] != modes[start]:
+                ls, lw = MODE_STYLE.get(MODE_NAMES[modes[start]], ("-", 0.0))
+                if lw > 0:
+                    ax.plot(x[start:j + 1], y[start:j + 1], ls, color=col, lw=lw)
+                start = j
+        if keep.any():
+            ax.plot(x[-1:], y[-1:], "o", color=col, mec="k", ms=6)
+    n = terr.n
+    det = [d for d in result.detections if d[0] <= t]
+    if det:
+        cells = np.array([d[2] for d in det])
+        tru = np.array([d[3] is not None for d in det])
+        cy, cx = np.divmod(cells, n)
+        c = terr.cell_size / 1000
+        ax.scatter((cx[tru] + 0.5) * c, (cy[tru] + 0.5) * c, s=40, facecolors="none", edgecolors="lime", lw=1.5,
+                   zorder=12)
+        ax.scatter((cx[~tru] + 0.5) * c, (cy[~tru] + 0.5) * c, s=12, c="k", marker="x", lw=0.8, zorder=12)
+    bx, by = terr.base_xy
+    ax.plot(bx / 1000, by / 1000, marker="^", ms=10, mec="k", mfc="gold", zorder=13)
+    ax.set_xlim(ext[0], ext[1])
+    ax.set_ylim(ext[2], ext[3])
+    ax.set_title(f"coverage (magenta) and tracks, t={t / 60:.0f} min")
+    if own:
+        fig.tight_layout()
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(path, dpi=110)
+        plt.close(fig)
+    return path
+
+
+def animate_episode(result, world, path, every_s=30.0, fps=10, dpi=55):
+    """The demo clip: 2 x 2 panels per frame (truth flood + people; coverage + tracks;
+    altitude and battery over time; vertical wind at glider height)."""
+    terr = world.terrain
+    fl = world.flood
+    tr = result.trajectory
+    snaps = result.snapshots
+    nd = result.n_drones
+    n = terr.n
+    ext = _extent(n, terr.cell_size)
+    cap = world.cfg.glider.battery_capacity_wh
+    agl = tr["z"] - terr.ground_at(tr["x"], tr["y"])
+    times = np.arange(0.0, tr["t"][-1] + 1e-6, every_s)
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10.5), dpi=dpi)
+    a0, a1, a2, a3 = axs.ravel()
+    base_rgb = terrain_rgb(terr)
+    grey = base_rgb.mean(axis=2, keepdims=True).repeat(3, 2)
+    a0.imshow(base_rgb, origin="lower", extent=ext)
+    flood_im = a0.imshow(np.zeros((n, n, 4)), origin="lower", extent=ext)
+    ppl = a0.scatter(np.zeros(0), np.zeros(0), s=26, edgecolors="k", lw=0.5, zorder=10)
+    a0.plot(terr.base_xy[0] / 1000, terr.base_xy[1] / 1000, marker="^", ms=9, mec="k", mfc="gold")
+    a0.set_title("truth: flood depth and people (white = found)")
+    a1.imshow(grey, origin="lower", extent=ext)
+    cov_im = a1.imshow(np.zeros((n, n, 4)), origin="lower", extent=ext)
+    tracks = [a1.plot([], [], "-", color=DRONE_COLORS[i % 8], lw=1.0)[0] for i in range(nd)]
+    heads = [a1.plot([], [], "o", color=DRONE_COLORS[i % 8], mec="k", ms=6)[0] for i in range(nd)]
+    det_t = a1.scatter(np.zeros(0), np.zeros(0), s=40, facecolors="none", edgecolors="lime", lw=1.5, zorder=12)
+    det_f = a1.scatter(np.zeros(0), np.zeros(0), s=12, c="k", marker="x", lw=0.8, zorder=12)
+    a1.set_title("coverage (magenta), tracks, detections (o true, x false)")
+    for a in (a0, a1):
+        a.set_xlim(ext[0], ext[1])
+        a.set_ylim(ext[2], ext[3])
+    hl = [a2.plot([], [], "-", color=DRONE_COLORS[i % 8], lw=1)[0] for i in range(nd)]
+    a2.set_xlim(0, tr["t"][-1] / 60)
+    a2.set_ylim(0, max(float(np.nanmax(agl)) * 1.1, 100))
+    a2.set_xlabel("minutes")
+    a2.set_ylabel("height above ground (m), solid")
+    a2b = a2.twinx()
+    bl = [a2b.plot([], [], "--", color=DRONE_COLORS[i % 8], lw=0.8)[0] for i in range(nd)]
+    a2b.set_ylim(0, 1.05)
+    a2b.set_ylabel("battery fraction, dashed")
+    a2.set_title("altitude and battery")
+    u, v, w = world.weather.wind_grid(100.0)
+    lim = max(float(np.percentile(np.abs(w), 99.5)), 0.3)
+    a3.imshow(w, origin="lower", extent=ext, cmap="RdBu_r", vmin=-lim, vmax=lim)
+    th = world.weather.thermal_list()
+    if len(th):
+        a3.scatter(th[:, 0] / 1000, th[:, 1] / 1000, s=10, facecolors="none", edgecolors="orange")
+    pos = a3.scatter(np.zeros(0), np.zeros(0), s=30, edgecolors="k")
+    a3.set_title("vertical wind at 100 m AGL (red up, blue down) and drones")
+    a3.set_xlim(ext[0], ext[1])
+    a3.set_ylim(ext[2], ext[3])
+    sup = fig.suptitle("")
+    cells = np.array([d[2] for d in result.detections], dtype=np.int64)
+    dts = np.array([d[0] for d in result.detections], float)
+    dtrue = np.array([d[3] is not None for d in result.detections], bool)
+    frames = []
+    for t in times:
+        flood_im.set_data(_flood_rgba(fl.depth_grid(min(t, fl.t_end))))
+        k = int(np.searchsorted(snaps["t"], t, side="right")) - 1 if len(snaps.get("t", [])) else -1
+        found = 0
+        if k >= 0:
+            cov_im.set_data(_coverage_rgba(snaps["seen"][k], n))
+            st = snaps["pstate"][k]
+            fd = snaps["pfound"][k]
+            ppl.set_offsets(np.c_[snaps["px"][k] / 1000, snaps["py"][k] / 1000])
+            ppl.set_facecolors(["#ffffff" if f else STATE_COLORS[s_] for s_, f in zip(st, fd)])
+            found = int(fd.sum())
+        keep = tr["t"] <= t
+        for i in range(nd):
+            tracks[i].set_data(tr["x"][keep, i] / 1000, tr["y"][keep, i] / 1000)
+            if keep.any():
+                heads[i].set_data(tr["x"][keep, i][-1:] / 1000, tr["y"][keep, i][-1:] / 1000)
+            hl[i].set_data(tr["t"][keep] / 60, agl[keep, i])
+            bl[i].set_data(tr["t"][keep] / 60, tr["E"][keep, i] / cap)
+        if len(cells):
+            m = dts <= t
+            cy, cx = np.divmod(cells[m], n)
+            xy = np.c_[(cx + 0.5) * terr.cell_size / 1000, (cy + 0.5) * terr.cell_size / 1000]
+            tm = dtrue[m]
+            det_t.set_offsets(xy[tm] if tm.any() else np.zeros((0, 2)))
+            det_f.set_offsets(xy[~tm] if (~tm).any() else np.zeros((0, 2)))
+        if keep.any():
+            last = int(np.nonzero(keep)[0][-1])
+            pos.set_offsets(np.c_[tr["x"][last] / 1000, tr["y"][last] / 1000])
+            pos.set_facecolors([DRONE_COLORS[i % 8] for i in range(nd)])
+        sup.set_text(f"FloodSim seed {world.spec.seed} ({world.spec.flood_type}), {nd} drones, "
+                     f"t = {t / 60:.0f} min, found {found}/{len(world.people0.x)}")
+        fig.canvas.draw()
+        frames.append(np.asarray(fig.canvas.buffer_rgba())[..., :3].copy())
+    plt.close(fig)
+    return _save_gif(frames, path, fps)
+
+
+def plot3d_html(result, world, path):
+    """Interactive 3D: terrain, translucent peak water surface, drone paths (hue per drone,
+    dash by mode), radio links every 10 min, thermal columns as translucent cylinders."""
+    from .autopilot import MODE_NAMES
+
+    try:
+        import plotly.graph_objects as go
+    except ImportError:
+        return plot3d_png(result, world, Path(path).with_suffix(".png"))
+    terr = world.terrain
+    f = 2
+    z = terr.z[::f, ::f].astype(float)
+    xs = (np.arange(z.shape[1]) * f + 0.5) * terr.cell_size
+    ys = (np.arange(z.shape[0]) * f + 0.5) * terr.cell_size
+    fig = go.Figure()
+    fig.add_trace(go.Surface(x=xs, y=ys, z=z, colorscale="Earth", showscale=False, name="terrain",
+                             hoverinfo="skip"))
+    d = world.flood.max_depth(0, world.episode_s)[::f, ::f]
+    water = np.where(d > 0.05, z + d, np.nan)
+    fig.add_trace(go.Surface(x=xs, y=ys, z=water, colorscale=[[0, "#2060c0"], [1, "#2060c0"]],
+                             showscale=False, opacity=0.6, name="peak flood", hoverinfo="skip"))
+    tr = result.trajectory
+    groups = {"search": ("SEARCH",), "transit": ("TRANSIT", "LAUNCH", "RTB", "LOITER"),
+              "thermal": ("THERMAL",), "verify": ("VERIFY",)}
+    style = {"search": ("solid", 3), "transit": ("dash", 2), "thermal": ("dot", 3), "verify": ("solid", 8)}
+    names = np.array(MODE_NAMES)
+    for i in range(result.n_drones):
+        col = DRONE_COLORS[i % len(DRONE_COLORS)]
+        mn = names[tr["mode"][:, i]]
+        for g, modes in groups.items():
+            m = np.isin(mn, modes)
+            if not m.any():
+                continue
+            dash, w = style[g]
+            fig.add_trace(go.Scatter3d(
+                x=np.where(m, tr["x"][:, i], np.nan), y=np.where(m, tr["y"][:, i], np.nan),
+                z=np.where(m, tr["z"][:, i], np.nan), mode="lines", connectgaps=False,
+                line=dict(color=col, width=w, dash=dash), name=f"drone {i} {g}", legendgroup=f"d{i}"))
+    R = world.cfg.team.signal_radius_km * 1000
+    lx, ly, lz = [], [], []
+    if len(tr["t"]) > 1:
+        step = max(int(round(600 / max(tr["t"][1] - tr["t"][0], 1))), 1)
+        for k in range(0, len(tr["t"]), step):
+            for a in range(result.n_drones):
+                for b in range(a + 1, result.n_drones):
+                    if np.hypot(tr["x"][k, a] - tr["x"][k, b], tr["y"][k, a] - tr["y"][k, b]) <= R:
+                        lx += [tr["x"][k, a], tr["x"][k, b], None]
+                        ly += [tr["y"][k, a], tr["y"][k, b], None]
+                        lz += [tr["z"][k, a], tr["z"][k, b], None]
+    if lx:
+        fig.add_trace(go.Scatter3d(x=lx, y=ly, z=lz, mode="lines", name="radio links (every 10 min)",
+                                   line=dict(color="rgba(60,60,60,0.25)", width=1)))
+    zi = world.spec.zi_m
+    ang = np.linspace(0, 2 * np.pi, 16, endpoint=False)
+    for (tx, ty, wc, rt) in world.weather.thermal_list():
+        g0 = float(terr.ground_at(np.array([tx]), np.array([ty]))[0])
+        cx, cy = tx + rt * np.cos(ang), ty + rt * np.sin(ang)
+        I, J, K = [], [], []
+        for a in range(16):
+            b = (a + 1) % 16
+            I += [a, b]
+            J += [b, b + 16]
+            K += [a + 16, a + 16]
+        fig.add_trace(go.Mesh3d(x=np.r_[cx, cx], y=np.r_[cy, cy], z=np.r_[np.full(16, g0), np.full(16, g0 + zi)],
+                                i=I, j=J, k=K, color="orange", opacity=0.12, name=f"thermal {wc:.1f} m/s",
+                                showlegend=False, hoverinfo="name"))
+    bx, by = terr.base_xy
+    fig.add_trace(go.Scatter3d(x=[bx], y=[by], z=[float(terr.ground_at(np.array([bx]), np.array([by]))[0]) + 20],
+                               mode="markers", marker=dict(size=6, color="gold", symbol="diamond"), name="base"))
+    zr = float(np.nanmax(tr["z"])) - float(z.min())
+    fig.update_layout(
+        title=f"FloodSim seed {world.spec.seed}: {world.spec.flood_type}, {result.n_drones} drones",
+        scene=dict(aspectmode="manual", aspectratio=dict(x=1, y=1, z=max(zr / terr.domain_m * 3, 0.15)),
+                   xaxis_title="east (m)", yaxis_title="north (m)", zaxis_title="z (m)"),
+        legend=dict(itemsizing="constant"), margin=dict(l=0, r=0, t=40, b=0))
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    fig.write_html(str(path), include_plotlyjs=True)
+    return path
+
+
+def plot3d_png(result, world, path):
+    """matplotlib fallback when plotly is missing."""
+    terr = world.terrain
+    f = 4
+    z = terr.z[::f, ::f]
+    c = (np.arange(z.shape[0]) * f + 0.5) * terr.cell_size
+    X, Y = np.meshgrid(c, c)
+    fig = plt.figure(figsize=(9, 7))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.plot_surface(X, Y, z, cmap="terrain", linewidth=0, alpha=0.8)
+    tr = result.trajectory
+    for i in range(result.n_drones):
+        ax.plot(tr["x"][:, i], tr["y"][:, i], tr["z"][:, i], color=DRONE_COLORS[i % 8], lw=1)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=100)
+    plt.close(fig)
+    return path
+
+
+def episode_report(result) -> str:
+    """Metrics table and safety events for one episode."""
+    m = result.metrics
+    lines = [f"Episode: seed {result.seed}, controller {result.controller}, {result.n_drones} drones", "-" * 60]
+    for k, v in m.items():
+        lines.append(f"{k:28s} {v:.4g}" if isinstance(v, float) else f"{k:28s} {v}")
+    lines.append("-" * 60)
+    lines.append("mode time (drone-seconds): " + ", ".join(f"{k} {v:.0f}" for k, v in result.mode_time.items() if v))
+    ev = [e for e in result.safety_events if e[1] != "landed"]
+    lines.append(f"safety events ({len(ev)}):")
+    for t, kind, who, info in ev[:30]:
+        lines.append(f"  t={t:7.0f}s {kind:20s} {who} {info}")
+    lines.append(f"finds ({len(result.finds)}): " +
+                 ", ".join(f"person {p} at {t / 60:.0f} min" for p, t, _, _ in result.finds))
+    return "\n".join(lines)

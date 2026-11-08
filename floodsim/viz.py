@@ -87,8 +87,11 @@ def _save_gif(frames, path, fps=8):
     except ImportError:  # pragma: no cover
         Image = None
     if Image is not None:
-        ims = [Image.fromarray(f) for f in frames]
-        ims[0].save(path, save_all=True, append_images=ims[1:], duration=int(1000 / fps), loop=0)
+        # one shared 64-colour palette keeps the clip small and flicker-free
+        pal = Image.fromarray(frames[len(frames) // 2]).quantize(colors=64, method=Image.Quantize.MEDIANCUT)
+        ims = [Image.fromarray(f).quantize(palette=pal, dither=Image.Dither.NONE) for f in frames]
+        ims[0].save(path, save_all=True, append_images=ims[1:], duration=int(1000 / fps), loop=0,
+                    optimize=True)
     if shutil.which("ffmpeg"):
         import subprocess
         import tempfile
@@ -191,3 +194,8 @@ def plot_wind_slice(world, z_agl=100.0, t=0.0, path=None, ax=None):
             fig.savefig(path, dpi=100)
         plt.close(fig)
     return path
+
+
+from ._viz_episode import (  # noqa: E402,F401  (episode visuals)
+    animate_episode, episode_report, plot3d_html, plot3d_png, plot_coverage,
+)

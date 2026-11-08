@@ -68,8 +68,11 @@ class FlightCore:
     # ----------------------------------------------------------------- lifecycle
     def launch(self, i: int, t: float, heading: float | None = None):
         s = self.s
-        s.x[i], s.y[i] = self.base
-        s.z[i] = float(self.surface_at(self.base[:1], self.base[1:])[0]) + self.ap.launch_release_m
+        # catapults sit evenly around the launch orbit, so a simultaneous launch is spread out
+        ang = 2 * math.pi * i / self.n
+        r = self.ap.launch_orbit_m
+        s.x[i], s.y[i] = self.base[0] + r * math.cos(ang), self.base[1] + r * math.sin(ang)
+        s.z[i] = float(self.surface_at(s.x[i:i + 1], s.y[i:i + 1])[0]) + self.ap.launch_release_m
         s.E[i] = self.perf.capacity_wh
         s.V[i] = self.perf.gp.climb_speed
         s.active[i] = True
@@ -77,7 +80,7 @@ class FlightCore:
         s.phi[i] = 0.0
         self.est_err[i] = self.rng.normal(0.0, self.wind_est_noise, 2)
         self.auto.launch(i, s, t)
-        s.psi[i] = 0.0 if heading is None else heading
+        s.psi[i] = ang + math.pi / 2 if heading is None else heading  # tangent to the anticlockwise orbit
 
     def place(self, i, x, y, z, psi, V=13.0, E=None, t=0.0):
         """Test helper: put drone i in the air (mode set by a following set_goal)."""

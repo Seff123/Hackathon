@@ -92,7 +92,55 @@ def cmd_build_cache(args, cfg: Config) -> int:
     return 0
 
 
-COMMANDS = {"scenario": cmd_scenario, "build-cache": cmd_build_cache}
+def cmd_demo(args, cfg: Config) -> int:
+    import time
+    from dataclasses import replace
+
+    from . import viz
+    from .controllers import ScriptedSweep
+    from .scenario import sample_spec
+    from .sim import Sim
+    from .world import build_world
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    t0 = time.perf_counter()
+    spec = sample_spec(args.seed, cfg=cfg)
+    world = build_world(spec, cfg, cache_dir=args.cache_dir)
+    print(f"world for seed {args.seed} ({spec.flood_type}, peak extent {world.peak_extent():.1%}) "
+          f"in {time.perf_counter() - t0:.1f} s")
+    sc = replace(cfg.sim, fast=False, record_grids=True)
+    res = Sim(world, ScriptedSweep(cfg.controller), sc, n_drones=args.drones, cfg=cfg).run()
+    print(f"episode: {res.n_drones} drones in {res.wall_s:.1f} s")
+    report = viz.episode_report(res)
+    print(report)
+    tag = f"seed{args.seed}"
+    (out / f"report_{tag}.txt").write_text(report)
+    (out / f"metrics_{tag}.json").write_text(json.dumps(res.metrics, indent=1))
+    paths = [
+        viz.plot_world(world, 0.0, out / f"world_{tag}.png"),
+        viz.plot_coverage(res, world, None, out / f"coverage_{tag}.png"),
+        viz.plot_wind_slice(world, 100.0, 0.0, out / f"wind_{tag}.png"),
+        viz.plot3d_html(res, world, out / f"episode3d_{tag}.html"),
+        viz.animate_episode(res, world, out / f"episode_{tag}.gif"),
+    ]
+    for p in paths:
+        print(f"wrote {p}")
+    return 0
+
+
+def cmd_evaluate(args, cfg: Config) -> int:
+    from .evaluate import evaluate
+
+    seeds = parse_seeds(args.seeds)
+    out, summary = evaluate(seeds, cfg, controller=args.controller, n_drones=args.drones, out_dir=args.out,
+                            workers=args.workers, cache_dir=args.cache_dir)
+    print(json.dumps(summary, indent=1))
+    print(f"wrote {out}/episodes.csv, scenarios.csv, summary.json")
+    return 0
+
+
+COMMANDS = {"scenario": cmd_scenario, "build-cache": cmd_build_cache, "demo": cmd_demo, "evaluate": cmd_evaluate}
 
 
 def run(args) -> int:
