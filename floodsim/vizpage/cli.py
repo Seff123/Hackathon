@@ -62,7 +62,8 @@ def add_cli(sub, team_args):
     p.add_argument("--controllers", default="bayes,survival", help="reference first, ours last")
     p.add_argument("--out", default="site/")
     p.add_argument("--results-root", default="results/")
-    p.add_argument("--results", default=None, help="reuse a results/scenarios_<ts>/ run (skip the runs)")
+    p.add_argument("--results", default=None,
+                   help="reuse results/scenarios_<ts>/ runs, comma-separated, later ones win (skip the runs)")
     p.add_argument("--workers", type=int, default=None)
     p.add_argument("--tuned", default="results/tuned_params.json")
     p.add_argument("--list", action="store_true", help="list the presets and exit")
@@ -165,10 +166,14 @@ def cmd_scenarios(args):
             print(f"{k:16s} {p.title}: {p.blurb}")
         return 0
     tuned = tuned_kw(args.tuned)
-    rd = args.results
-    if rd is None:
+    if args.results:
+        dirs = args.results.split(",")
+    else:
         keys = list(PRESETS) if args.presets == "all" else args.presets.split(",")
-        rd = run_scenarios(keys, parse_seeds(args.seeds), tuple(args.controllers.split(",")), args.results_root,
-                           args.workers, args.cache, args.config, tuned)
-    export_pages(rd, args.out, args.cache, args.config, tuned)
+        latest = Path(args.results_root) / "latest_scenarios.txt"
+        # a run of some presets is shown together with the other presets of the previous run
+        prev = [latest.read_text().strip()] if args.presets != "all" and latest.exists() else []
+        dirs = prev + [str(run_scenarios(keys, parse_seeds(args.seeds), tuple(args.controllers.split(",")),
+                                         args.results_root, args.workers, args.cache, args.config, tuned))]
+    export_pages(dirs, args.out, args.cache, args.config, tuned)
     return 0

@@ -92,6 +92,21 @@ PRESETS: dict[str, Preset] = {p.key: p for p in [
                        town_radius_m=Bounds(700.0, 1100.0), peak_inflow_m3s=Bounds(600.0, 1500.0, "loguniform"),
                        n_targets=Bounds(20, 25, "int"), category_mean=(0.65, 0.2, 0.15)),
            knobs=dict(town_river_dist_m=(100.0, 700.0), min_targets_in_flood=4)),
+    Preset("extreme_2076", "Extreme 2076 flood",
+           "The top of the 2076 climate range: storm rain and river flow both 1.4 times today's extremes, river "
+           "and surface flooding at once, low levees overtopped, full cloud so no thermals, and a strong wind. "
+           "A large part of the valley and its towns goes under water during the sortie.",
+           "Survival-aware ahead: with more people at risk than the fleet can reach, choosing who is most urgent "
+           "matters most; but the forecast's depth errors also grow, which may cancel the gain.",
+           bounds=dict(flood_type={"fluvial+pluvial": 1.0}, climate_factor=Bounds(1.4, 1.4),
+                       peak_rain_mmh=Bounds(40.0, 60.0), storm_radius_km=Bounds(6.0, 8.0),
+                       storm_duration_h=Bounds(2.0, 4.0),
+                       peak_inflow_m3s=Bounds(1400.0, 2100.0, "loguniform"),   # 1000-1500 x 1.4
+                       **SMALL_CHANNEL, levee_height_m=Bounds(0.5, 1.5), time_to_peak_h=Bounds(1.0, 2.0),
+                       start_offset_h=Bounds(0.5, 1.5), valley_width_m=Bounds(1000.0, 2000.0),
+                       town_radius_m=Bounds(800.0, 1200.0), n_towns=Bounds(2, 3, "int"),
+                       n_targets=Bounds(20, 25, "int"), cloud_cover=Bounds(0.95, 1.0), wind10_ms=Bounds(5.0, 8.0)),
+           knobs=dict(town_river_dist_m=(0.0, 900.0), extent_frac=(0.08, 0.75), min_targets_in_flood=8)),
 ]}
 
 

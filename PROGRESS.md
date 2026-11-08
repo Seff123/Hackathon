@@ -59,3 +59,6 @@ Pipeline (`scripts/run_experiments.py --trials 10`, 104 min): tuned bayes / heur
 
 ## Scenario presets (added on request)
 `floodsim/presets.py`: 7 named presets (town in / far from the flood, easy escape / trapped valley, sudden breach, slow rise, two gliders). They work by narrowing the scenario bounds and setting generator knobs stored on `spec.preset`; ordinary spec hashes are unchanged. `python -m floodsim scenarios` runs Bayesian search and the survival-aware planner on 20 floods per preset (11 min), measures truth features to confirm each preset's situation, and exports one compare page per preset plus the `site/scenarios.html` selector. Results are in the README. Tests: tests/test_presets.py.
+
+## Extreme 2076 preset
+Added `extreme_2076` (climate factor 1.4 on rain and river flow, combined flooding, storm weather). Over 20 floods: 14% of land flooded and 15 people at risk per flood. Survival of people at risk is 0.63 (ours) vs 0.61 (Bayesian), paired +0.014 [−0.025, +0.053], 9 wins / 10 losses / 1 tie. `scenarios --presets <subset>` now merges with the previous scenario run, so the selector keeps every preset.

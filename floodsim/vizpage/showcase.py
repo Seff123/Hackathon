@@ -82,6 +82,8 @@ FEATURE_TEXT = {   # which measured features each card shows (median over the pr
     "sudden_breach": [("onset_min", "until water reaches people", "min"), ("pop_wet_frac", "of homes in the flood", "pct")],
     "slow_rise": [("onset_min", "until water reaches people", "min"), ("pop_wet_frac", "of homes in the flood", "pct")],
     "few_gliders": [("n_at_risk", "people reached by the flood", "n"), ("n_drones", "gliders", "n")],
+    "extreme_2076": [("extent_frac", "of the land flooded", "pct"), ("n_at_risk", "people reached by the flood", "n"),
+                     ("pop_wet_frac", "of homes in the flood", "pct")],
 }
 
 
@@ -166,17 +168,26 @@ def run_scenarios(presets, seeds, controllers=("bayes", "survival"), out_root="r
     return out
 
 
-def export_pages(results_dir, site="site/", cache="cache/", config=None, tuned=None, rec_out=None) -> Path:
-    """One compare page per preset (its demo flood) and site/scenarios.html to switch between them."""
+def export_pages(results_dirs, site="site/", cache="cache/", config=None, tuned=None, rec_out=None) -> Path:
+    """One compare page per preset (its demo flood) and site/scenarios.html to switch between them.
+    `results_dirs` may be a list of scenario runs; a preset in a later run replaces the same preset in an earlier
+    one, so a run of a few presets can be added to a full run."""
     from ..presets import PRESETS
     from .export import build_bundle, callouts, write_page
     from .record import record_episode
-    summ = json.loads((Path(results_dir) / "summary.json").read_text())
+    if isinstance(results_dirs, (str, Path)):
+        results_dirs = [results_dirs]
+    merged, summ = {}, None
+    for d in results_dirs:
+        summ = json.loads((Path(d) / "summary.json").read_text())
+        merged.update(summ["presets"])
     ref, ours = summ["controllers"][0], summ["controllers"][-1]
     site = Path(site)
     site.mkdir(parents=True, exist_ok=True)
     cards = []
-    for key, ps in summ["presets"].items():
+    order = list(PRESETS) + [k for k in merged if k not in PRESETS]
+    for key in [k for k in order if k in merged]:
+        ps = merged[key]
         demo = ps.get("demo")
         if not demo:
             continue

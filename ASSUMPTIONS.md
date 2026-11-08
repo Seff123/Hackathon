@@ -105,3 +105,6 @@ Added on request after the plans were complete: named situations to show where t
 - a minimum number of towns.
 
 The knobs live on `spec.preset`, so they are part of the spec hash. `to_dict` drops the field when it is None, so ordinary specs and their cached floods are unchanged. Presets were tuned on base seeds 1-5 by measuring truth features (walk to dry ground, town gap, people in the flood), never by planner outcome. The "expected" line on each preset was written before any planner was run on it. The demo flood per preset is the median non-tied seed, the same rule as the main comparison.
+
+## Extreme 2076 preset
+The environment plan sets the climate factor at "rainfall intensity × 1.0-1.4 for 2076" and applies it to rain only. The `extreme_2076` preset fixes the factor at the top of that range (1.4). It applies the same uplift to river flow: peak inflow 1400-2100 m³/s, which is the top of the normal 1000-1500 range × 1.4 and beyond the ordinary bounds. These are framing numbers taken from the plan, not a climate projection for any real river. The preset also uses combined river and surface flooding, low levees (0.5-1.5 m), a peak during the sortie, full cloud (so no thermals) and 5-8 m/s wind; the normal wind-limit check still applies.
