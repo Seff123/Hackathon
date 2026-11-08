@@ -110,9 +110,13 @@ class PeopleState:
     def step(self, t: float, dt: float, flood, terrain: Terrain, domain: float) -> None:
         pp = self.params
         act = self.active()
+        d = flood.depth(self.x, self.y, t)
+        # found people stay where they were found; whether the water reaches them still decides "at risk"
+        newly = ~self.lost & (d > pp.affected_depth) & np.isnan(self.t_affected)
+        self.t_affected[newly] = t
+        self.ever_affected |= newly
         if not act.any():
             return
-        d = flood.depth(self.x, self.y, t)
         u, v = flood.velocity(self.x, self.y, t)
         sp = np.hypot(u, v)
         hr = hazard_rating(d, sp)
