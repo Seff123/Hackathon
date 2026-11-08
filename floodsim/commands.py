@@ -50,7 +50,42 @@ def cmd_scenario(args, cfg: Config) -> int:
     return 0
 
 
-COMMANDS = {"scenario": cmd_scenario}
+def _build_one(args):
+    seed, cfg, cache_dir = args
+    from .scenario import sample_spec
+    from .world import build_world
+
+    spec = sample_spec(seed, cfg=cfg)
+    w = build_world(spec, cfg, cache_dir=cache_dir)
+    return seed, spec.attempt, spec.spec_hash, w.stats
+
+
+def cmd_build_cache(args, cfg: Config) -> int:
+    import time
+    from concurrent.futures import ProcessPoolExecutor
+
+    seeds = parse_seeds(args.seeds)
+    workers = args.workers or os.cpu_count() or 1
+    t0 = time.perf_counter()
+    out = {}
+    jobs = [(s, cfg, args.cache_dir) for s in seeds]
+    if workers <= 1:
+        results = map(_build_one, jobs)
+    else:
+        ex = ProcessPoolExecutor(workers)
+        results = ex.map(_build_one, jobs)
+    for i, (seed, attempt, h, stats) in enumerate(results):
+        out[str(seed)] = {"attempt": attempt, "spec_hash": h, "peak_extent": round(stats.get("peak_extent", 0), 4)}
+        print(f"[{i + 1}/{len(seeds)}] seed {seed} attempt {attempt} extent {out[str(seed)]['peak_extent']:.3f}", flush=True)
+    split = args.split or (args.seeds[0] if len(args.seeds) == 1 else "custom")
+    p = Path(args.cache_dir) / f"seeds_{split}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(out, indent=1))
+    print(f"wrote {p} ({time.perf_counter() - t0:.1f} s)")
+    return 0
+
+
+COMMANDS = {"scenario": cmd_scenario, "build-cache": cmd_build_cache}
 
 
 def run(args) -> int:

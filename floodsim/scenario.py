@@ -98,7 +98,8 @@ def rejection_checks(spec: ScenarioSpec, terr: Terrain, people: Placement, cfg: 
     land = terr.land
     wet = cheap_flood_extent(spec, terr, cfg)
     frac = float((wet & land).sum() / max(land.sum(), 1))
-    if not 0.03 <= frac <= 0.40:
+    lo, hi = cfg.world.cheap_extent_range
+    if not lo <= frac <= hi:
         fails.append(f"extent {frac:.3f}")
     d = ndimage.distance_transform_edt(~(wet & land)) * terr.cell_size
     iy, ix = world_to_grid(people.x, people.y, terr.cell_size, terr.n)
@@ -121,9 +122,36 @@ def rejection_checks(spec: ScenarioSpec, terr: Terrain, people: Placement, cfg: 
     return fails
 
 
+def solver_check(spec: ScenarioSpec, cfg: Config) -> list[str]:
+    """Run the flood solver and check its peak extent; the result is kept for build_world."""
+    from . import world as W
+
+    key = spec.spec_hash + cfg.world_key()
+    if key in W._MEM:
+        w = W._MEM[key]
+    else:
+        from pathlib import Path
+
+        cached = W._cache_path(spec, "cache")
+        w = W._load(spec, cfg, cached) if cached.exists() else None
+        if w is None:
+            w = W.flood_world(spec, cfg)
+            W._FLOOD[key] = w
+            while len(W._FLOOD) > 3:
+                W._FLOOD.pop(next(iter(W._FLOOD)))
+    ext = w.stats.get("peak_extent", w.peak_extent())
+    lo, hi = cfg.world.extent_range
+    return [] if lo <= ext <= hi else [f"solver extent {ext:.3f}"]
+
+
 def sample_spec(seed: int, bounds: ScenarioBounds | None = None, cfg: Config | None = None,
-                return_log: bool = False):
-    """Sample a spec for `seed` that passes every rejection check."""
+                return_log: bool = False, flood_check: bool = True):
+    """Sample a spec for `seed` that passes every rejection check.
+
+    The plan's cheap HAND-based checks run first; then (unless disabled) the
+    flood solver's peak extent must lie in extent_range. The solver result is
+    reused by build_world, so the check costs nothing extra later.
+    """
     cfg = cfg or Config()
     bounds = bounds or cfg.bounds
     log = []
@@ -132,9 +160,12 @@ def sample_spec(seed: int, bounds: ScenarioBounds | None = None, cfg: Config | N
         terr = build_terrain(spec, cfg.world, stream(seed, "terrain", attempt))
         people = place_people(spec, terr, cfg.people, stream(seed, "people", attempt))
         fails = rejection_checks(spec, terr, people, cfg)
-        log.append((attempt, fails))
         if not fails:
             _remember(spec, cfg, terr, people)
+            if flood_check and cfg.world.solver_extent_check:
+                fails = solver_check(spec, cfg)
+        log.append((attempt, fails))
+        if not fails:
             return (spec, log) if return_log else spec
     raise ScenarioRejected(f"seed {seed}: all {MAX_ATTEMPTS} attempts failed the rejection checks")
 

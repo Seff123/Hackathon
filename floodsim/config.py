@@ -365,6 +365,9 @@ class WorldConfig:
     inflow_spread_cells: int = 3
     runoff_coef: dict = _weights({"urban": 0.9, "open": 0.5, "forest": 0.3, "water": 1.0})
     wet_depth_m: float = 0.1  # "flooded" threshold used for extents and forecasts
+    cheap_extent_range: tuple = (0.02, 0.60)  # loose pre-filter on the HAND estimate
+    extent_range: tuple = (0.03, 0.40)  # check on the solver's peak extent
+    solver_extent_check: bool = True
 
     @property
     def n(self) -> int:
@@ -406,7 +409,7 @@ class WeatherParams:
     thermal_radius_clamp: tuple = (60.0, 200.0)
     thermal_landcover_weight: dict = _weights({"urban": 1.5, "open": 1.0, "forest": 0.5, "water": 0.0})
     rho: float = 1.225
-    storm_steer_height_m: float = 600.0
+    storm_speed_factor: float = 1.0  # storm track speed = factor x wind at 10 m
 
 
 @dataclass
