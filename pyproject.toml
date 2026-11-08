@@ -1,21 +1,24 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "floodsim"
 version = "0.1.0"
-description = "Seeded flood scenarios and a motor-glider SAR swarm environment"
+description = "Seeded flood scenarios and a motor-glider SAR swarm simulator"
 requires-python = ">=3.11"
-dependencies = ["numpy", "scipy", "matplotlib"]
+dependencies = ["numpy>=1.26", "scipy>=1.11", "matplotlib>=3.8"]
 
 [project.optional-dependencies]
-viz = ["plotly", "pillow"]
-test = ["pytest"]
+viz = ["plotly>=5", "pillow>=10"]
+dev = ["pytest>=8"]
 
 [tool.setuptools]
 packages = ["floodsim"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: slower tests (many seeds or full episodes)"]
+markers = [
+    "slow: long-running statistical or multi-seed tests",
+    "perf: timing tests (skip with FLOODSIM_SKIP_PERF=1)",
+]

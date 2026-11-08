@@ -1,16 +1,21 @@
-# FloodSim default configuration. Every value overrides a dataclass default in floodsim/config.py.
-# Team inputs: set these before training. The values below are placeholders.
+# FloodSim defaults. Every value here matches the dataclass default in
+# floodsim/config.py; uncomment and edit to change one.
 
 [team]
-mass_kg = 5.0            # glider mass, validated 1-25 kg
-battery_life_min = 150.0 # minutes of level powered flight at 13 m/s on a full battery
-# battery_wh = 180.0     # give this instead to set capacity directly
-charge_time_min = 10.0   # battery-swap time at base
-signal_radius_km = 3.0   # radio range drone-drone and drone-base
-camera_range_m = 140.0   # height at which a person on land is detected 50% of the time
+# Placeholders: set these from the team's airframe before tuning.
+mass_kg = 5.0
+battery_life_min = 150.0      # level flight at 13 m/s on a full battery
+# battery_wh = 180.0          # set instead of battery_life_min if known
+charge_time_min = 10.0        # battery swap at base
+signal_radius_km = 3.0        # radio range, drone-drone and drone-base
+camera_range_m = 140.0        # 50% detection height for a person on land
 
-# Any other block can be overridden here, e.g.
-# [autopilot]
-# transit_speed = 15.0
 # [bounds]
+# relief_m = [20, 300, "loguniform"]
 # n_drones = [2, 8, "int"]
+
+# [sim]
+# fast = false
+
+# [controller]
+# sweep_agl_frac = 0.6

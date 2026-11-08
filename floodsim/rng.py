@@ -1,31 +1,34 @@
-"""Named, independent random streams derived from one seed.
+"""Named, independent random streams derived from a scenario seed.
 
-Each subsystem gets its own child stream, so changing how many draws one
-subsystem makes never changes another subsystem's draws.
+Each stream gets a fixed integer id, so adding a stream or changing how many
+draws one subsystem makes never shifts another subsystem's draws.
 """
+
 from __future__ import annotations
 
 import numpy as np
 
-STREAMS = ("spec", "terrain", "hydro", "flood", "weather", "people", "sensor", "forecast", "sim")
+STREAM_IDS = {
+    "spec": 1,
+    "terrain": 2,
+    "hydro": 3,
+    "flood": 4,
+    "weather": 5,
+    "people": 6,
+    "sensor": 7,
+    "forecast": 8,
+    "sim": 9,
+}
 
 
-class Streams:
-    def __init__(self, seed: int, attempt: int = 0):
-        self.seed = int(seed)
-        self.attempt = int(attempt)
-        root = np.random.SeedSequence([self.seed, self.attempt])
-        children = root.spawn(len(STREAMS))
-        self._seq = dict(zip(STREAMS, children))
-        self._gens: dict[str, np.random.Generator] = {}
+def stream(seed: int, name: str, attempt: int = 0, *extra: int) -> np.random.Generator:
+    """Return the generator for one named stream of (seed, attempt)."""
+    if name not in STREAM_IDS:
+        raise KeyError(f"unknown RNG stream {name!r}")
+    ss = np.random.SeedSequence([int(seed), int(attempt), STREAM_IDS[name], *map(int, extra)])
+    return np.random.default_rng(ss)
 
-    def __getitem__(self, name: str) -> np.random.Generator:
-        if name not in self._gens:
-            self._gens[name] = np.random.default_rng(self._seq[name])
-        return self._gens[name]
 
-    def fresh(self, name: str, *sub: int) -> np.random.Generator:
-        """A new generator for `name`, optionally keyed further (e.g. per drone)."""
-        ss = np.random.SeedSequence(entropy=self._seq[name].entropy,
-                                    spawn_key=self._seq[name].spawn_key + tuple(int(s) for s in sub) + (7919,))
-        return np.random.default_rng(ss)
+def streams(seed: int, attempt: int = 0) -> dict[str, np.random.Generator]:
+    """All named streams for one scenario attempt."""
+    return {name: stream(seed, name, attempt) for name in STREAM_IDS}
