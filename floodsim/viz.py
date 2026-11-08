@@ -161,3 +161,33 @@ def scenario_plots(world, out, seed):
     if hasattr(world, "weather") and world.weather is not None and "plot_wind_slice" in globals():
         paths.append(plot_wind_slice(world, 100.0, 0.0, out / f"scenario_{seed}_wind.png"))
     return paths
+
+
+def plot_wind_slice(world, z_agl=100.0, t=0.0, path=None, ax=None):
+    """Horizontal wind quiver over a vertical-wind colour map (ridge lift and thermals)."""
+    wx = world.weather
+    u, v, w = wx.wind_grid(z_agl, t)
+    terr = world.terrain
+    ext = _extent(terr.n, terr.cell_size)
+    own = ax is None
+    if own:
+        fig, ax = plt.subplots(figsize=(7.5, 6.5))
+    lim = max(float(np.percentile(np.abs(w), 99.5)), 0.3)
+    im = ax.imshow(w, origin="lower", extent=ext, cmap="RdBu_r", vmin=-lim, vmax=lim)
+    ax.contour(terr.z, levels=12, colors="k", linewidths=0.3, alpha=0.5, extent=ext, origin="lower")
+    s = 12
+    X = (np.arange(terr.n) + 0.5) * terr.cell_size / 1000
+    ax.quiver(X[::s], X[::s], u[::s, ::s], v[::s, ::s], color="k", alpha=0.6, scale=150)
+    th = wx.thermal_list()
+    if len(th):
+        ax.scatter(th[:, 0] / 1000, th[:, 1] / 1000, s=10, facecolors="none", edgecolors="orange")
+    ax.set_title(f"wind at {z_agl:.0f} m AGL: arrows horizontal, colour vertical (m/s)\n"
+                 f"U10={world.spec.wind10_ms:.1f} m/s, w*={world.spec.w_star_ms:.2f} m/s, {len(th)} thermals")
+    if own:
+        fig.colorbar(im, ax=ax, shrink=0.8)
+        fig.tight_layout()
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(path, dpi=100)
+        plt.close(fig)
+    return path

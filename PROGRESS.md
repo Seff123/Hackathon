@@ -11,3 +11,6 @@ Vectorised local-inertial solver on the 100 m grid (channel-width faces, Froude 
 
 ## Phase 3: forecast
 FloodForecast precomputed as arrays (noisy stage forecasts at drainage cells for 5-min issues x 0-60 min leads, noisy observed extent every 10 min, noisy velocity every 10 min, noisy storm model), with prob_flooded / expected_depth / expected_hazard / observed_velocity. Brier at 30 min lead 0.05-0.19 on seeds 0-19. No truth reachable from the forecast. 28 tests pass.
+
+## Phase 4: weather
+Constant mean wind with log profile (z0 0.1 m, constant above 600 m), ridge lift from 150 m-smoothed terrain with H_r from 2 km relief, fixed thermal hotspots (Allen-style profile) weighted by land cover; cached with the world. Wind-slice plot shows lift on windward valley walls and lee sink. 31 tests pass.

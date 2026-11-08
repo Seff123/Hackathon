@@ -39,3 +39,4 @@
 - Forecast stage at a dry drainage cell is -0.5 m (before bias and noise), and P_flood uses the same 0.1 m wet threshold as the truth: P = Phi((S - HAND - 0.1) / sigma). Without these, dry tributary cells read P = 0.5.
 - Pluvial forecast: ponding estimate = cumulative forecast rain x runoff coefficient x min(upstream cells, 25), compared with max(depression depth, 0.1 m) + 0.1 m with sigma/2, only where depression depth > 5 cm. The rain forecast is the true storm with centre noise (500 m), speed noise (10%) and intensity x (1 +/- 0.2).
 - Brier score is computed over land cells with HAND < 10 m (the floodplain zone) and averaged over 5-min issue times; scoring all land would be dominated by trivially dry hillsides. The 5% observed-extent errors with the 0.95 floor alone contribute about 0.04.
+- Thermal lookup is a vectorised loop over all hotspots (at most ~30), not a spatial grid; it is cheaper in numpy at this count.

@@ -119,9 +119,10 @@ def _attach_products(world: World, fc_arrays=None, wx_arrays=None):
     except ImportError:
         Weather = None
     if Weather is not None:
-        world.weather = (Weather.from_arrays(wx_arrays, world.terrain, world.spec, world.cfg)
+        world.weather = (Weather.from_arrays(wx_arrays, world.terrain, world.spec, world.cfg, storm=world.storm)
                          if wx_arrays else build_weather(world.spec, world.terrain, world.cfg,
-                                                         stream(world.spec.seed, "weather", world.spec.attempt)))
+                                                         stream(world.spec.seed, "weather", world.spec.attempt),
+                                                         storm=world.storm))
 
 
 def flood_world(spec: ScenarioSpec, cfg: Config) -> World:
