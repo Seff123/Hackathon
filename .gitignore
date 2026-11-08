@@ -9,3 +9,4 @@ __pycache__/
 .DS_Store
 seeds_*.json
 *.egg-info/
+*.log
