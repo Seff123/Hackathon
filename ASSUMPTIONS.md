@@ -68,3 +68,17 @@
 - Time to first find / mean time to find are reported as the episode length when nobody is found, so every metric is finite.
 - The rain-radar estimate in the view is the true storm rain (100 m, mm/h) × one scenario-wide factor (1 ± 0.2 N), refreshed every 5 min.
 - PlannerView exposes `n_hat`, `episode_end_s`, `horizon_s`, `connected_to_base` and the drone's own autopilot status (mode, goal kind, waypoint index, E_return).
+
+## Planner (PLANNER_PLAN.md)
+- P0 hooks: `Controller.observe(views_all)` every sensor tick; PlannerView carries `n_hat`, `episode_end_s`, `horizon_s`, `connected_to_base`; static maps include `building_density`, `road_mask` and `dist_to_river`; FloodForecast gained `observed_extent`, `sigma`, `stage_offset=`, `fluvial_terms` (bias learning) and `products_all_leads` (vectorised urgency tables).
+- Forecast depth: observed-wet cells also get an extent-derived depth (FwDET-style: highest flood-edge elevation within ~250 m minus the DEM, after a 3×3 majority filter), used as max(HAND depth, extent depth) with a 0.3 m sd in the hazard terms. Pure HAND underestimated depth badly where water comes from the main river or a breach but the local drainage is a dry tributary. It is still imprecise (MAE ≈ 0.6 m), so the "value aligns with scoring" test is marked as an expected failure: at the few finds where truth survival dropped (people on roofs in breach/backwater water), the planner's danger estimate lags.
+- Scoring units: S = B (1 − claimed) / T_minutes^β − μ (E_cost / E_now) × median(B/T). The energy penalty is scaled by the median value rate so μ is dimensionless. With T in seconds and no scaling, the energy term was ~100× the value term and every planner just picked the nearest block.
+- Camera range in the planner's look update: drone altitude − DEM (ground components) or − surface (home components, on roofs). Revisit windows open at the first look and apply the best p̂_d after 20 s.
+- Claims cover only the chosen block (not the blocks the transit path crosses at search height); transit happens at the separate transit layers.
+- Urgency tables: danger rates are evaluated at 10-min leads (0-60 min) and the 5-min steps are linearly interpolated; P(HR > θ) is computed at 50 m and block-averaged to 100 m. This halves the table cost.
+- Prediction: the mobile part (fraction m) of the open component is kept as its own grid; only mobile mass in cells with P_flood > 0.5 moves (forward bilinear push uphill along ∇HAND at 0.9 m/s, diffusion σ = 0.5 × 0.9 × dt / 50 m, and a 0.5/min share riding fast deep water). The push is mass-conservative; mass leaving the domain goes to `lost_mass`.
+- Bias learning: the learned b is the correction added to the forecast stage, so a forecast biased +0.3 m is learned as b̂ ≈ −0.3 m.
+- base_relay comms: a drone's frames enter the fleet belief only while it has a multi-hop radio path to base; otherwise they are buffered with the drone's altitude at frame time. Verification results and decisions are not delayed.
+- Soaring is allowed when battery < E_soar and the best block's score is below the median of the last 10 decisions (fleet-wide history).
+- If no block is feasible (energy), the planner sends RTB.
+- Planner overhead is ≈ 1.8 s (bayes) and ≈ 2.8 s (survival) per cached 8-drone fast episode; the performance test allows 3 s.

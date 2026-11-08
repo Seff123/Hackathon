@@ -26,3 +26,21 @@ Sim with information boundary (PlannerView whitelist), battery swap and relaunch
 
 ## Phase 8: visualisation and demo
 plot_world, plot_coverage, plot_wind_slice, GIF (+MP4) animation, plotly 3D HTML; CLI scenario/build-cache/demo/evaluate.
+
+## Planner P0: hooks
+`observe()` hook, n_hat/horizon in the view, extra static maps and forecast accessors; information-boundary test still passes for planner runs.
+
+## Planner P1: detection
+State-aware p̂_d per component (home/home_low inside vs roof, road vehicle, outdoor vs in water). Dry town at 84 m: 0.010; flooded: 0.50.
+
+## Planner P2: belief
+Six component intensity grids, revisit windows, candidates with P_real, fleet brain ingest with batched p̂_d.
+
+## Planner P3: scenarios
+630-scenario posterior from per-component accumulators (Appendix B); synthetic recovery test passes.
+
+## Planner P4: urgency
+Marginal-survival value tables V[class, lead, cell] per 5-min bucket; value-shape test reproduces the plan's numbers. Forecast gained an extent-derived depth.
+
+## Planner P5: scoring and controllers
+Block tables B[h, lead, block], travel/search time, energy feasibility, claims, spread, hysteresis, verify policy, decision log; `bayes`, `heuristic`, `survival` controllers. Equivalence, claims and feasibility tests pass.
