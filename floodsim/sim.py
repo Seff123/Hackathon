@@ -121,6 +121,8 @@ class EpisodeResult:
     recording: dict | None = None
     wall_s: float = 0.0
     planner_diag: dict = field(default_factory=dict)
+    events: list = field(default_factory=list)
+    people_final: list = field(default_factory=list)
 
 
 TRAJ_FIELDS = ("t", "drone", "x", "y", "z", "V", "phi", "E", "mode", "netto")
@@ -409,7 +411,10 @@ class Sim:
             traj_fields=TRAJ_FIELDS, finds=finds, verification_log=self.verify_log, mode_time=mode_time,
             energy_log={"used_wh": self.energy_used.tolist(), "capacity_wh": self.gp.capacity_wh},
             safety_events=self.safety, detections_log=self.det_log, decision_log=dlog, recording=self.recording,
-            wall_s=time.perf_counter() - wall0, planner_diag=diag)
+            wall_s=time.perf_counter() - wall0, planner_diag=diag, events=self.events,
+            people_final=[{"id": int(k), "at_risk": bool(self.people.ever_affected[k]),
+                           "surv": float(self.people.survival()[k]), "found": bool(self.people.found[k])}
+                          for k in range(self.people.n)])
 
     # ------------------------------------------------------------------ events and checks
     def _log_safety(self, i, kind, **kw):

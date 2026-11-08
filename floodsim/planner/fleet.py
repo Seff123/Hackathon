@@ -400,10 +400,10 @@ class FleetBrain:
         if not self.ready:
             return None
         lam = scoring.block_sum(self.belief.intensity(), self.f).astype(np.float16)
-        if self.mode == "survival" and self.urg.V is not None:
-            V0 = self.urg.V[:, 0]
-        else:
-            V0 = None
+        # "lives at stake" always uses the survival value function, whatever planner is flying
+        if self.urg.t_built is None or int(t // 300) != int(self.urg.t_built // 300):
+            self.urg.update(self.fc, t, self.bias.mean())
+        V0 = self.urg.V[:, 0]
         snap = {"t": float(t), "lam": lam,
                 "w": self.belief.w_eff().round(4).tolist(), "count_scale": round(self.belief.count_scale(), 4),
                 "bias_m": round(self.bias.mean(), 4), "wind": [float(a) for a in self.fleet_wind10()],
