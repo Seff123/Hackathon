@@ -163,11 +163,13 @@ def estimate_extent(spec: ScenarioSpec, terrain: Terrain, wc: WorldConfig, cfg=N
 
 
 def rejection_checks(spec: ScenarioSpec, terrain: Terrain, people: dict, wc: WorldConfig, cfg=None) -> list[str]:
+    from .presets import knob
     fails = []
     land = ~terrain.river_mask
     wet = estimate_extent(spec, terrain, wc, cfg)
     frac = wet.sum() / max(land.sum(), 1)
-    if not (wc.extent_frac[0] * wc.extent_check_margin <= frac <= wc.extent_frac[1] / wc.extent_check_margin):
+    ext = knob(spec, "extent_frac", wc.extent_frac)
+    if not (ext[0] * wc.extent_check_margin <= frac <= ext[1] / wc.extent_check_margin):
         fails.append(f"extent {frac:.3f}")
     c = terrain.cell_size
     if wet.any():
@@ -177,7 +179,7 @@ def rejection_checks(spec: ScenarioSpec, terrain: Terrain, people: dict, wc: Wor
         near = (dist[iy, ix] <= wc.targets_near_flood_m).mean()
     else:
         near = 0.0
-    if near < wc.targets_near_flood_frac:
+    if near < knob(spec, "targets_near_flood_frac", wc.targets_near_flood_frac):
         fails.append(f"targets_near {near:.2f}")
     bx, by = terrain.base_xy
     biy, bix = int(by // c), int(bx // c)
@@ -191,14 +193,28 @@ def rejection_checks(spec: ScenarioSpec, terrain: Terrain, people: dict, wc: Wor
         fails.append("wind")
     if terrain.drain_outlet_frac < wc.min_drain_to_outlet:
         fails.append(f"drainage {terrain.drain_outlet_frac:.2f}")
+    k_in = knob(spec, "min_targets_in_flood", 0)
+    if k_in:
+        iy = np.clip((people["y"] // c).astype(int), 0, terrain.n - 1)
+        ix = np.clip((people["x"] // c).astype(int), 0, terrain.n - 1)
+        if int(wet[iy, ix].sum()) < k_in:
+            fails.append("targets_in_flood")
+    if len(terrain.towns) < knob(spec, "min_towns", 0):
+        fails.append("towns")
     return fails
 
 
 def sample_spec(seed: int, bounds: ScenarioBounds | None = None, team: TeamInputs | None = None,
-                cfg: Config | None = None, attempt: int | None = None, **overrides) -> ScenarioSpec:
-    """Sample a scenario spec, resampling with sub-seeds (seed, 1, 2, ...) until every check passes."""
+                cfg: Config | None = None, attempt: int | None = None, preset: str | None = None,
+                **overrides) -> ScenarioSpec:
+    """Sample a scenario spec, resampling with sub-seeds (seed, 1, 2, ...) until every check passes.
+    `preset` names a scenario preset (floodsim/presets.py) that narrows the bounds and sets generator knobs."""
     cfg = cfg or load_config()
     b = bounds or cfg.bounds
+    if preset:
+        from .presets import preset_bounds, preset_tag
+        b = preset_bounds(preset, b)
+        overrides = {"preset": preset_tag(preset), **overrides}
     team = team or cfg.team
     attempts = [attempt] if attempt is not None else range(cfg.world.max_attempts)
     last = []

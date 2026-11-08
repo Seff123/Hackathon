@@ -236,7 +236,11 @@ def generate_terrain(spec: ScenarioSpec, wc: WorldConfig, rng: np.random.Generat
 
     # --- towns: on low-slope floodplain edges within 1.5 km of the river
     towns = []
-    cand = (~river_mask) & (d >= 0.4 * hw) & (d <= wc.town_max_river_dist_m)
+    td = (spec.preset or {}).get("town_river_dist_m")
+    if td:   # scenario preset: town centres in a given band of distance from the river
+        cand = (~river_mask) & (d >= td[0]) & (d <= td[1])
+    else:
+        cand = (~river_mask) & (d >= 0.4 * hw) & (d <= wc.town_max_river_dist_m)
     edge_ok = (X > 800) & (X < L - 800) & (Y > 800) & (Y < L - 800)
     cand &= edge_ok
     w = np.where(cand, np.exp(-slope / 0.03) * np.exp(-np.abs(d - hw) / 600.0), 0.0)

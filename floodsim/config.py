@@ -495,9 +495,14 @@ class ScenarioSpec:
     charge_time_min: float
     signal_radius_km: float
     camera_range_m: float
+    # named scenario preset and its generator knobs (floodsim/presets.py); None for ordinary scenarios
+    preset: dict | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if d.get("preset") is None:
+            d.pop("preset", None)   # keeps the hash (and the flood cache) of ordinary scenarios unchanged
+        return d
 
     @staticmethod
     def from_dict(d: dict) -> "ScenarioSpec":

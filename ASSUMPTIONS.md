@@ -96,3 +96,12 @@
 
 ## Ablation and sweeps use default parameters
 `scripts/run_experiments.py` passes tuned parameters to the main comparison only; ablation, lambda sweep and swarm size use the defaults. Their absolute survival levels therefore differ from the main table; the paired differences within each run are still like-for-like.
+
+## Scenario presets (not in the plans)
+Added on request after the plans were complete: named situations to show where the planners should differ (`floodsim/presets.py`, `python -m floodsim scenarios`). The natural test floods vary too little for this: the biggest town is never more than 0.55 km from the flood, and the median walk to dry ground is at most about 430 m. So a preset narrows the sampling bounds and sets a few generator knobs instead:
+- town-to-river distance band;
+- relaxed extent and targets-near-flood checks;
+- a minimum number of people inside the estimated flood;
+- a minimum number of towns.
+
+The knobs live on `spec.preset`, so they are part of the spec hash. `to_dict` drops the field when it is None, so ordinary specs and their cached floods are unchanged. Presets were tuned on base seeds 1-5 by measuring truth features (walk to dry ground, town gap, people in the flood), never by planner outcome. The "expected" line on each preset was written before any planner was run on it. The demo flood per preset is the median non-tied seed, the same rule as the main comparison.

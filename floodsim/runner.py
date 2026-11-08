@@ -69,11 +69,12 @@ def get_controller(name: str, cfg: Config, **kw):
 
 def run_episode(seed: int, controller: str = "scripted", n_drones: int | None = None, config_path=None,
                 team: dict | None = None, cache_dir="cache/", fast: bool = True, record: bool = False,
-                controller_kw: dict | None = None, sim_kw: dict | None = None, attempt: int | None = None):
+                controller_kw: dict | None = None, sim_kw: dict | None = None, attempt: int | None = None,
+                preset: str | None = None):
     from .scenario import build_world, sample_spec
     from .sim import Sim
     cfg = make_config(config_path, team)
-    spec = sample_spec(seed, cfg=cfg, attempt=attempt)
+    spec = sample_spec(seed, cfg=cfg, attempt=attempt, preset=preset)
     world = build_world(spec, cache_dir=cache_dir, cfg=cfg)
     ctrl = get_controller(controller, cfg, **(controller_kw or {}))
     sc = SimConfig(fast=fast and not record, record_grids=record, **(sim_kw or {}))
@@ -82,14 +83,14 @@ def run_episode(seed: int, controller: str = "scripted", n_drones: int | None = 
 
 
 def _episode_task(args):
-    seed, controller, n_drones, config_path, team, cache_dir, controller_kw, sim_kw, tag = args
+    seed, controller, n_drones, config_path, team, cache_dir, controller_kw, sim_kw, tag, preset = args
     t0 = time.perf_counter()
     try:
         res, world = run_episode(seed, controller, n_drones, config_path, team, cache_dir, True, False,
-                                 controller_kw, sim_kw)
+                                 controller_kw, sim_kw, preset=preset)
     except Exception as e:  # keep the batch going; report the failure
         return {"seed": seed, "controller": controller, "tag": tag, "error": repr(e)}
-    row = {"seed": seed, "controller": controller, "tag": tag, "spec_hash": res.spec_hash, "n_drones": res.n_drones,
+    row = {"seed": seed, "controller": controller, "tag": tag, "preset": preset or "", "spec_hash": res.spec_hash, "n_drones": res.n_drones,
            "wall_s": round(time.perf_counter() - t0, 2)}
     for k, v in res.metrics.items():
         if isinstance(v, (int, float, str, bool)):
@@ -101,10 +102,11 @@ def _episode_task(args):
 
 
 def run_batch(seeds, controller="scripted", n_drones=None, config_path=None, team=None, cache_dir="cache/",
-              workers=None, controller_kw=None, sim_kw=None, tag="", progress=True, drones_by_seed=None):
+              workers=None, controller_kw=None, sim_kw=None, tag="", progress=True, drones_by_seed=None,
+              preset=None):
     workers = workers or max(1, (os.cpu_count() or 2) - 1)
     tasks = [(s, controller, (drones_by_seed or {}).get(s, n_drones), config_path, team, cache_dir, controller_kw,
-              sim_kw, tag) for s in seeds]
+              sim_kw, tag, preset) for s in seeds]
     rows = []
     t0 = time.perf_counter()
     if workers == 1:

@@ -26,6 +26,7 @@ def add_cli(sub, team_args):
     p.add_argument("--out", default="site/")
     p.add_argument("--rec-out", default="out/")
     p.add_argument("--tuned", default="results/tuned_params.json")
+    p.add_argument("--preset", default=None, help="scenario preset (see `scenarios --list`)")
     team_args(p)
     p.set_defaults(func=cmd_export)
 
@@ -43,6 +44,7 @@ def add_cli(sub, team_args):
     p.add_argument("--drones", type=int, default=None)
     p.add_argument("--out", default="site/")
     p.add_argument("--tuned", default="results/tuned_params.json")
+    p.add_argument("--preset", default=None)
     team_args(p)
     p.set_defaults(func=cmd_demo3d)
 
@@ -54,6 +56,19 @@ def add_cli(sub, team_args):
     team_args(p)
     p.set_defaults(func=cmd_pitch)
 
+    p = sub.add_parser("scenarios", help="run both planners on the scenario presets; compare pages + site/scenarios.html")
+    p.add_argument("--presets", default="all", help="comma list or 'all'")
+    p.add_argument("--seeds", default="1-20", help="base seeds per preset")
+    p.add_argument("--controllers", default="bayes,survival", help="reference first, ours last")
+    p.add_argument("--out", default="site/")
+    p.add_argument("--results-root", default="results/")
+    p.add_argument("--results", default=None, help="reuse a results/scenarios_<ts>/ run (skip the runs)")
+    p.add_argument("--workers", type=int, default=None)
+    p.add_argument("--tuned", default="results/tuned_params.json")
+    p.add_argument("--list", action="store_true", help="list the presets and exit")
+    team_args(p)
+    p.set_defaults(func=cmd_scenarios)
+
 
 def _latest(kind):
     p = Path("results/latest_runs.json")
@@ -63,11 +78,11 @@ def _latest(kind):
     return str(cands[-1]) if cands else None
 
 
-def record_runs(seed, controllers, drones, team, cache, config, tuned):
+def record_runs(seed, controllers, drones, team, cache, config, tuned, preset=None):
     from .record import record_episode
     out = []
     for c in controllers:
-        res, world = record_episode(seed, c, drones, cache, team, config, controller_kw=tuned.get(c))
+        res, world = record_episode(seed, c, drones, cache, team, config, controller_kw=tuned.get(c), preset=preset)
         out.append((res, world))
     return out
 
@@ -77,7 +92,8 @@ def cmd_export(args):
     from .record import save_recording
     t0 = time.perf_counter()
     ctrls = args.controllers.split(",")
-    runs = record_runs(args.seed, ctrls, args.drones, _team(args), args.cache, args.config, tuned_kw(args.tuned))
+    runs = record_runs(args.seed, ctrls, args.drones, _team(args), args.cache, args.config, tuned_kw(args.tuned),
+                       args.preset)
     bundles = []
     for res, world in runs:
         save_recording(res, world, args.rec_out)
@@ -118,7 +134,7 @@ def cmd_demo3d(args):
     from .demo3d import demo3d
     from .record import record_episode
     res, world = record_episode(args.seed, args.controller, args.drones, args.cache, _team(args), args.config,
-                                tuned_kw(args.tuned).get(args.controller))
+                                tuned_kw(args.tuned).get(args.controller), preset=args.preset)
     drape = None
     dbg = [d for d in res.recording.get("debug", []) if d and "stake" in d]
     if dbg:
@@ -137,4 +153,22 @@ def cmd_pitch(args):
     runs = record_runs(args.seed, ctrls, None, _team(args), args.cache, args.config, tuned_kw(args.tuned))
     out = make_pitch(runs, args.out)
     print("wrote", out)
+    return 0
+
+
+def cmd_scenarios(args):
+    from ..presets import PRESETS
+    from ..runner import parse_seeds
+    from .showcase import export_pages, run_scenarios
+    if args.list:
+        for k, p in PRESETS.items():
+            print(f"{k:16s} {p.title}: {p.blurb}")
+        return 0
+    tuned = tuned_kw(args.tuned)
+    rd = args.results
+    if rd is None:
+        keys = list(PRESETS) if args.presets == "all" else args.presets.split(",")
+        rd = run_scenarios(keys, parse_seeds(args.seeds), tuple(args.controllers.split(",")), args.results_root,
+                           args.workers, args.cache, args.config, tuned)
+    export_pages(rd, args.out, args.cache, args.config, tuned)
     return 0

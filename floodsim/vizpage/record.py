@@ -10,10 +10,10 @@ from ..config import to_jsonable
 
 
 def record_episode(seed: int, controller: str, n_drones=None, cache="cache/", team=None, config=None,
-                   controller_kw=None):
+                   controller_kw=None, preset=None):
     from ..runner import run_episode
     return run_episode(seed, controller, n_drones, config, team, cache, fast=False, record=True,
-                       controller_kw=controller_kw)
+                       controller_kw=controller_kw, preset=preset)
 
 
 def save_recording(result, world, out_dir) -> Path:
