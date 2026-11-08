@@ -120,6 +120,7 @@ class EpisodeResult:
     decision_log: list = field(default_factory=list)
     recording: dict | None = None
     wall_s: float = 0.0
+    planner_diag: dict = field(default_factory=dict)
 
 
 TRAJ_FIELDS = ("t", "drone", "x", "y", "z", "V", "phi", "E", "mode", "netto")
@@ -401,13 +402,14 @@ class Sim:
                  for k in np.flatnonzero(self.people.found)]
         mode_time = {MODE_NAMES[m]: float(self.mode_time[:, m].sum()) for m in range(len(MODE_NAMES))}
         dlog = list(getattr(self.controller, "decision_log", []) or [])
+        diag = self.controller.diagnostics() if hasattr(self.controller, "diagnostics") else {}
         return EpisodeResult(
             spec_hash=self.spec.spec_hash, seed=self.spec.seed, controller=getattr(self.controller, "name", "?"),
             controller_params=self.controller.params_dict(), n_drones=n, metrics=metrics, trajectory=traj,
             traj_fields=TRAJ_FIELDS, finds=finds, verification_log=self.verify_log, mode_time=mode_time,
             energy_log={"used_wh": self.energy_used.tolist(), "capacity_wh": self.gp.capacity_wh},
             safety_events=self.safety, detections_log=self.det_log, decision_log=dlog, recording=self.recording,
-            wall_s=time.perf_counter() - wall0)
+            wall_s=time.perf_counter() - wall0, planner_diag=diag)
 
     # ------------------------------------------------------------------ events and checks
     def _log_safety(self, i, kind, **kw):

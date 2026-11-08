@@ -86,11 +86,14 @@ class Weather:
         """(u, v, w) at world points; arrays over drones. z is altitude (m above datum)."""
         x = np.asarray(x, dtype=float)
         y = np.asarray(y, dtype=float)
-        zg = nearest(self.terrain_z, x, y, self.cell)
-        z_agl = np.asarray(z, dtype=float) - zg
+        n = self.terrain_z.shape[0]
+        iy = np.clip((y // self.cell).astype(np.int64), 0, n - 1)
+        ix = np.clip((x // self.cell).astype(np.int64), 0, n - 1)
+        z_agl = np.asarray(z, dtype=float) - self.terrain_z[iy, ix]
         s = self.speed_at(z_agl)
         u, v = s * self.cx, s * self.cy
-        w = self.ridge(x, y, z_agl, u, v) + self.thermal_w(x, y, z_agl)
+        ridge = self.k_r * (u * self.gx[iy, ix] + v * self.gy[iy, ix]) * np.exp(-np.maximum(z_agl, 0) / self.H_r[iy, ix])
+        w = np.maximum(ridge, self.p.ridge_min_sink) + self.thermal_w(x, y, z_agl)
         return u, v, w
 
     wind_at = wind
