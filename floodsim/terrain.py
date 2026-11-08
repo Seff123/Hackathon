@@ -231,8 +231,14 @@ def build_terrain(spec: ScenarioSpec, wc: WorldConfig, rng: np.random.Generator)
     fp_amp = rng.uniform(*wc.floodplain_noise_m)
     fp_noise = spectral_noise(rng, n, 3.0) * fp_amp
     z1 = z0 - spec.valley_depth_m * smoothstep(1 - dist / half)
-    beta = 1.0 - smoothstep((dist - w_fp) / max(half - w_fp, 1.0))
-    z = (1 - beta) * z1 + beta * (E_grid + fp_noise)
+    floor = E_grid + fp_noise
+    # wall width: at least the nominal transition, widened so the wall slope stays
+    # below max_wall_slope (smoothstep peaks at 1.5x the mean slope)
+    rise = np.maximum(z0 - floor, 0.0)
+    wall = np.maximum(half - w_fp, 1.5 * rise / wc.max_wall_slope)
+    beta = 1.0 - smoothstep((dist - w_fp) / np.maximum(wall, 1.0))
+    z1 = np.where(dist <= w_fp + wall, np.minimum(z1, z0), z1)
+    z = (1 - beta) * z1 + beta * floor
 
     # channel: centreline + width, lowered by channel depth with small noise
     ch_noise = ndimage.gaussian_filter1d(rng.standard_normal(len(river_order)), 5) * 3.0

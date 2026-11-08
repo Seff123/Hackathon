@@ -30,6 +30,7 @@ class GliderState:
     vz: np.ndarray
     tau: np.ndarray  # last throttle
     w_air: np.ndarray  # last vertical air velocity at the glider
+    sink: np.ndarray = None  # last still-air sink rate
 
     @classmethod
     def at(cls, n: int, x, y, z, psi=0.0, V=12.0, E=100.0) -> "GliderState":
@@ -39,7 +40,8 @@ class GliderState:
         zb = np.zeros(n, bool)
         return cls(x=f(x), y=f(y), z=f(z), V=f(V), psi=f(psi), phi=np.zeros(n), E=f(E),
                    stalled=zb.copy(), crashed=zb.copy(), landed=zb.copy(), active=np.ones(n, bool),
-                   vx=np.zeros(n), vy=np.zeros(n), vz=np.zeros(n), tau=np.zeros(n), w_air=np.zeros(n))
+                   vx=np.zeros(n), vy=np.zeros(n), vz=np.zeros(n), tau=np.zeros(n), w_air=np.zeros(n),
+                   sink=np.zeros(n))
 
     @property
     def n(self) -> int:
@@ -114,6 +116,7 @@ def glider_step(s: GliderState, V_cmd, phi_cmd, tau, wind, perf: Performance, dt
     tau = np.where(s.E > 0, np.minimum(np.maximum(tau, 0.0), 1.0), 0.0)
     s.stalled[:] = perf.cl(V, phi) > gp.cl_max
     sink = perf.sink(V, phi)
+    s.sink = sink
     hdot = tau * perf.T * V / perf.W - sink
     psidot = perf.g * np.tan(phi) / V
     psi_mid = s.psi + 0.5 * psidot * dt

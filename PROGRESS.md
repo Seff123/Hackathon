@@ -20,3 +20,6 @@ Quasi-steady point-mass glider with sink-rate table, vectorised over drones; bat
 
 ## Phase 6: people, sensor, radio
 People behaviour state machine (home -> roof, outdoor walk to high ground, in-water drift, lost), danger time and survival, find freezing. Nadir LWIR camera with footprint cells, range-ratio detection model with cover/state modifiers, Poisson false alarms, verification. Range-only radio. 62 tests pass.
+
+## Phase 7: sim loop, scripted controller, metrics
+Sim with per-process clocks (1 s flight/radio, 2 s sensing, 10 s people), PlannerView whitelist (no truth reachable, tested), battery swap and relaunch, people stepped to episode end + 2 h, fast mode with identical metrics. ScriptedSweep: equal-area crosswind strips over HAND < 10 m, verifies every detection, soars below 60% battery, repeats its pattern. Metrics per section 15. Fixed along the way: geofence heading chatter, terrain-escape latch, valley walls capped at 0.3 slope, catapult + spiral launch. 70 passed, 1 xfail (soft timing: 8-drone fast episode ~7.5 s vs 6 s budget).

@@ -28,7 +28,8 @@ class Env:
         self.core = FlightCore(
             drones, cfg.glider, ap or cfg.autopilot, cp or cfg.controller,
             self.surface_at, self.ground_at, self.L, base, cfg.team.ceiling_agl_m,
-            self.weather.wind_at, self.mean_wind_at, np.random.default_rng(seed), zi=zi)
+            self.weather.wind_at, self.mean_wind_at, np.random.default_rng(seed), zi=zi,
+            mean_wind_agl=self.weather.mean_wind)
         self.t = 0.0
 
     def surface_at(self, x, y):

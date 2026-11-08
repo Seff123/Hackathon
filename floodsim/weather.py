@@ -82,7 +82,7 @@ class Weather:
         rad = np.exp(-r2 / th[None, :, 3] ** 2)
         return thermal_profile(z_agl / self.zi) * (rad * th[None, :, 2]).sum(axis=1)
 
-    def wind_at(self, x, y, z):
+    def wind_at(self, x, y, z, return_ground=False):
         """(u, v, w) at world positions (arrays), z in metres above datum."""
         x = np.asarray(x, float)
         y = np.asarray(y, float)
@@ -93,6 +93,8 @@ class Weather:
         w = np.maximum(wr, self.wp.ridge_sink_clip)
         if len(self.thermals) and self.w_star > 0:
             w = w + self.thermal(x, y, z_agl).reshape(np.shape(x))
+        if return_ground:
+            return sp * self.ex, sp * self.ey, w, zg
         return sp * self.ex, sp * self.ey, w
 
     def wind(self, x, y, z, t=0.0):

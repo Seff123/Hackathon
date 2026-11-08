@@ -337,6 +337,7 @@ class WorldConfig:
     floodplain_frac: float = 0.6  # inner share of the valley half-width blended flat
     centreline_noise_m: float = 0.3
     min_river_slope: float = 0.0005
+    max_wall_slope: float = 0.3  # valley walls are widened so they are no steeper than this
     max_pond_depth_m: float = 0.5  # closed depressions deeper than this are partly filled
     prefill_eps_m: float = 0.025  # per-cell gradient given to filled basins (slope 0.0005)
     river_start_jitter: float = 0.3
@@ -507,6 +508,8 @@ class AutopilotParams:
     ceiling_margin_m: float = 100.0
     floor_m: float = 30.0
     lookahead_s: float = 10.0
+    escape_margin_m: float = 20.0  # terrain escape ends after escape_clear_s with this extra margin
+    escape_clear_s: float = 10.0
     geofence_margin_m: float = 300.0
     geofence_violation_m: float = 500.0
     stall_margin: float = 1.15
@@ -534,9 +537,13 @@ class AutopilotParams:
     transit_layer_cycle: int = 5
     transit_band_half_m: float = 25.0
     forced_landing_agl_m: float = 30.0
+    launch_release_m: float = 30.0  # catapult release height above the pad
+    launch_orbit_m: float = 80.0
+    launch_orbit_climb_m: float = 60.0  # spiral up to this height above the base before heading out
     crosswind_margin: float = 5.0  # transit airspeed >= |crosswind| + this
     climb_headwind_margin: float = 8.0  # band climbs at max(climb_speed, headwind + this)
     rtb_descent_rate: float = 1.0  # m/s, for the payload energy of the landing orbit
+    rtb_check_s: float = 5.0  # energy-rule check interval
     rtb_hard_floor: float = 1.1  # RTB whenever E <= this x reserve, glide or not
 
 
@@ -599,6 +606,7 @@ class ControllerParams:
     e_soar: float = 0.6
     replan_s: float = 60.0
     verify_all: bool = True
+    edge_margin_m: float = 350.0  # search legs stay this far inside the domain
 
 
 @dataclass

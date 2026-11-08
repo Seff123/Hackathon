@@ -31,7 +31,7 @@ class FlightCore:
     def __init__(self, n: int, gp: GliderParams, ap: AutopilotParams, cp: ControllerParams,
                  surface_at, ground_at, domain_m: float, base_xy, ceiling_agl: float,
                  wind_at, mean_wind_at, rng: np.random.Generator, zi: float | None = None,
-                 vario_noise: float = 0.1, wind_est_noise: float = 1.0):
+                 vario_noise: float = 0.1, wind_est_noise: float = 1.0, mean_wind_agl=None):
         self.n = n
         self.perf = Performance(gp)
         self.ap = ap
@@ -41,6 +41,7 @@ class FlightCore:
         self.base = np.asarray(base_xy, float)
         self.wind_at = wind_at
         self.mean_wind_at = mean_wind_at
+        self.mean_wind_agl = mean_wind_agl
         self.rng = rng
         self.vario_noise = vario_noise
         self.wind_est_noise = wind_est_noise
@@ -68,7 +69,7 @@ class FlightCore:
     def launch(self, i: int, t: float, heading: float | None = None):
         s = self.s
         s.x[i], s.y[i] = self.base
-        s.z[i] = float(self.surface_at(self.base[:1], self.base[1:])[0]) + 2.0
+        s.z[i] = float(self.surface_at(self.base[:1], self.base[1:])[0]) + self.ap.launch_release_m
         s.E[i] = self.perf.capacity_wh
         s.V[i] = self.perf.gp.climb_speed
         s.active[i] = True
@@ -76,8 +77,7 @@ class FlightCore:
         s.phi[i] = 0.0
         self.est_err[i] = self.rng.normal(0.0, self.wind_est_noise, 2)
         self.auto.launch(i, s, t)
-        tx, ty = self.auto.tx[i], self.auto.ty[i]
-        s.psi[i] = math.atan2(ty - s.y[i], tx - s.x[i]) if heading is None else heading
+        s.psi[i] = 0.0 if heading is None else heading
 
     def place(self, i, x, y, z, psi, V=13.0, E=None, t=0.0):
         """Test helper: put drone i in the air (mode set by a following set_goal)."""
@@ -97,16 +97,21 @@ class FlightCore:
     # ----------------------------------------------------------------- step
     def step(self, t: float, dt: float = 1.0):
         s, auto = self.s, self.auto
-        u, v, w = self.wind_at(s.x, s.y, s.z)
+        u, v, w, ground = self.wind_at(s.x, s.y, s.z, return_ground=True)
         self.netto = w + self.rng.normal(0.0, self.vario_noise, self.n)
-        V, phi, tau = auto.step(t, s, self.wind_estimate(), self.netto)
+        if self.mean_wind_agl is not None:
+            ue, ve = self.mean_wind_agl(s.z - ground)
+            est = (ue + self.est_err[:, 0], ve + self.est_err[:, 1])
+        else:
+            est = self.wind_estimate()
+        V, phi, tau = auto.step(t, s, est, self.netto, ground=ground)
         E0 = s.E.copy()
         act = s.active.copy()
         glider_step(s, V, phi, tau, (u, v, w), self.perf, dt)
         # accumulators
         self.energy_used += np.where(act, E0 - s.E, 0.0)
         motor = tau * self.perf.T * V / self.perf.W
-        self.motor_climb += np.where(act, np.maximum(motor - self.perf.sink(V, phi), 0.0) * dt, 0.0)
+        self.motor_climb += np.where(act, np.maximum(motor - s.sink, 0.0) * dt, 0.0)
         self.lift_climb += np.where(act, np.maximum(w, 0.0) * dt, 0.0)
         self.mode_time[np.arange(self.n), auto.mode] += dt
         self.airborne_time += np.where(act, dt, 0.0)
@@ -144,13 +149,14 @@ class FlightCore:
             self.log.geofence_violations += 1
             out.append(("geofence_violation", int(i)))
         act = s.active
-        gnd = self.ground_at(s.x, s.y)
-        for i in np.nonzero(act & (s.E <= 0) & (s.z - gnd < ap.forced_landing_agl_m))[0]:
+        empty = act & (s.E <= 0)
+        gnd = self.ground_at(s.x, s.y) if empty.any() else s.z
+        for i in np.nonzero(empty & (s.z - gnd < ap.forced_landing_agl_m))[0]:
             self._kill(i, t, "forced_landing", {})
             self.log.forced_landings += 1
             out.append(("forced_landing", int(i)))
         # pairwise checks outside the base zone
-        act = s.active & ~auto.in_base_zone(s)
+        act = s.active & ~auto.bz
         idx = np.nonzero(act)[0]
         if len(idx) >= 2:
             x, y, z = s.x[idx], s.y[idx], s.z[idx]

@@ -55,9 +55,16 @@ def _build_one(args):
     from .scenario import sample_spec
     from .world import build_world
 
+    from . import scenario as S
+    from . import world as W
+
     spec = sample_spec(seed, cfg=cfg)
     w = build_world(spec, cfg, cache_dir=cache_dir)
-    return seed, spec.attempt, spec.spec_hash, w.stats
+    stats = dict(w.stats)
+    W._MEM.clear()  # keep worker memory flat (8 GB machines)
+    W._FLOOD.clear()
+    S._TERRAIN_CACHE.clear()
+    return seed, spec.attempt, spec.spec_hash, stats
 
 
 def cmd_build_cache(args, cfg: Config) -> int:
@@ -65,7 +72,7 @@ def cmd_build_cache(args, cfg: Config) -> int:
     from concurrent.futures import ProcessPoolExecutor
 
     seeds = parse_seeds(args.seeds)
-    workers = args.workers or os.cpu_count() or 1
+    workers = args.workers or min(os.cpu_count() or 1, 4)
     t0 = time.perf_counter()
     out = {}
     jobs = [(s, cfg, args.cache_dir) for s in seeds]

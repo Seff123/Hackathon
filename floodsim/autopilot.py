@@ -75,6 +75,7 @@ class Autopilot:
         self.v_start = np.full(n, np.nan)
         # rtb
         self.rtb_phase = np.zeros(n, np.int64)
+        self.launch_phase = np.zeros(n, np.int64)
         # thermal
         self.netto_count = np.zeros(n)
         self.lift_x, self.lift_y = z.copy(), z.copy()
@@ -91,6 +92,9 @@ class Autopilot:
         self.avoid_z = np.full(n, np.nan)
         # safety bookkeeping
         self.escape = np.zeros(n, bool)
+        self.bz = np.zeros(n, bool)
+        self.esc_clear = np.zeros(n)
+        self.esc_dir = np.ones(n)
         self.stall_prot = np.zeros(n, bool)
         self.geo = np.zeros(n, bool)
         self.cant = np.zeros(n, bool)
@@ -189,9 +193,9 @@ class Autopilot:
     def launch(self, i, s: GliderState, t: float):
         """Drone i leaves the pad: climb straight out towards its pending goal."""
         self.mode[i] = LAUNCH
-        g = self.pending[i]
-        tx, ty = self._goal_point(g, s, i)
-        self._waypoint(i, tx, ty)
+        self.launch_phase[i] = 0
+        # spiral up over the pad first (bases can sit on slopes), then head out
+        self._orbit(i, self.base[0], self.base[1], self.ap.launch_orbit_m)
         self.alt[i] = A_CLIMB
         self.bank_cap[i] = math.radians(self.ap.bank_cmd_limit_deg)
         self.netto_count[i] = 0
@@ -237,7 +241,7 @@ class Autopilot:
         return V * np.cos(crab) - headwind
 
     # ------------------------------------------------------------------ main step
-    def step(self, t: float, s: GliderState, wind_est, netto):
+    def step(self, t: float, s: GliderState, wind_est, netto, ground=None):
         """wind_est: (ue, ve) mean-wind estimate at each drone. Returns V_cmd, phi_cmd, tau."""
         self.t = t
         ap, perf = self.ap, self.perf
@@ -245,11 +249,21 @@ class Autopilot:
         act = s.active & (self.mode != GROUND) & (self.mode != DOWN)
         ue, ve = wind_est
         x, y, z = s.x, s.y, s.z
-        ground = self.ground_at(x, y)
-        # one batched surface lookup: here, then 2.5/5/7.5/10 s ahead on the current velocity
+        if ground is None:
+            ground = self.ground_at(x, y)
+        self.bz = self.in_base_zone(s)
+        # one batched surface lookup: here, then 2.5/5/7.5/10 s ahead along the
+        # current turn (air velocity rotates at constant bank, wind adds linearly)
         ks = (2.5, 5.0, 7.5, ap.lookahead_s)
-        PX = np.concatenate([x] + [x + s.vx * k for k in ks])
-        PY = np.concatenate([y] + [y + s.vy * k for k in ks])
+        K = np.array((0.0,) + ks)[:, None]
+        Vh = np.maximum(s.V, 1.0)
+        cps, sps = np.cos(s.psi), np.sin(s.psi)
+        wx_, wy_ = s.vx - Vh * cps, s.vy - Vh * sps
+        om = G * np.tan(s.phi) / Vh
+        om = np.where(np.abs(om) < 1e-4, 1e-4, om)
+        a = s.psi + om * K
+        PX = (x + Vh / om * (np.sin(a) - sps) + wx_ * K).ravel()
+        PY = (y + Vh / om * (cps - np.cos(a)) + wy_ * K).ravel()
         S_all = self.surface_at(PX, PY).reshape(len(ks) + 1, n)
         surf = S_all[0]
         h_surf = z - surf
@@ -258,22 +272,33 @@ class Autopilot:
         self._transitions(t, s, act, h_surf, h_gnd, netto, ue, ve)
 
         # ---- desired ground course
-        chi_wp = np.arctan2(self.ty - y, self.tx - x)
-        chi_l = np.arctan2(self.ty - self.ly, self.tx - self.lx)
-        e = -(x - self.lx) * np.sin(chi_l) + (y - self.ly) * np.cos(chi_l)
-        xmax = math.radians(ap.xtrack_max_deg)
-        chi_line = chi_l - _clip(ap.xtrack_gain * e, -xmax, xmax)
-        dxo, dyo = x - self.ox, y - self.oy
-        do = np.hypot(dxo, dyo)
-        th = np.arctan2(dyo, dxo)
-        chi_orb = th + self.odir * (np.pi / 2 + np.arctan(1.5 * (do - self.orad) / self.orad))
-        chi = np.select([self.gm == LINE, self.gm == ORBIT], [chi_line, chi_orb], chi_wp)
+        chi = np.arctan2(self.ty - y, self.tx - x)
+        is_line = self.gm == LINE
+        if is_line.any():
+            chi_l = np.arctan2(self.ty - self.ly, self.tx - self.lx)
+            e = -(x - self.lx) * np.sin(chi_l) + (y - self.ly) * np.cos(chi_l)
+            xmax = math.radians(ap.xtrack_max_deg)
+            chi = np.where(is_line, chi_l - _clip(ap.xtrack_gain * e, -xmax, xmax), chi)
+        is_orb = self.gm == ORBIT
+        if is_orb.any():
+            dxo, dyo = x - self.ox, y - self.oy
+            do = np.hypot(dxo, dyo)
+            th = np.arctan2(dyo, dxo)
+            chi_orb = th + self.odir * (np.pi / 2 + np.arctan(1.5 * (do - self.orad) / self.orad))
+            chi = np.where(is_orb, chi_orb, chi)
+        else:
+            do = self.orad * 10.0
 
         # geofence: near the edge and heading out -> turn towards the centre
         edge = np.minimum.reduce([x, y, self.L - x, self.L - y])
         cx, cy = self.L / 2 - x, self.L / 2 - y
-        outward = (s.vx * cx + s.vy * cy) < 0
-        geo = act & (edge < ap.geofence_margin_m) & outward
+        cn = np.maximum(np.hypot(cx, cy), 1.0)
+        vn = np.maximum(np.hypot(s.vx, s.vy), 0.1)
+        inward = (s.vx * cx + s.vy * cy) / (cn * vn)  # cos of angle between velocity and centre
+        in_zone = edge < ap.geofence_margin_m
+        start = act & in_zone & (inward < 0)
+        # latch until heading clearly inward or out of the edge zone (prevents heading chatter)
+        geo = act & (start | (self.geo & in_zone & (inward < 0.7)))
         chi = np.where(geo, np.arctan2(cy, cx), chi)
         self.counts["geofence_turn"] += geo & ~self.geo
         self.geo = geo
@@ -349,24 +374,31 @@ class Autopilot:
         # ---- safety layer (runs last, always wins)
         # 1. terrain
         exempt = ((self.mode == RTB_M) & (np.hypot(x - self.base[0], y - self.base[1]) < ap.rtb_floor_exempt_m)) \
-            | ((self.mode == LAUNCH) & self.in_base_zone(s))
+            | ((self.mode == LAUNCH) & (self.launch_phase == 0))
+        quiet = (self.mode == LAUNCH) & self.bz  # low near the pad is expected
         hmin = h_surf.copy()
         for kk, k in enumerate(ks):
             hmin = np.minimum(hmin, z + s.vz * k - S_all[kk + 1])
-        danger = act & ~exempt & (hmin < ap.floor_m)
+        trigger = act & ~exempt & (hmin < ap.floor_m)
+        # latch: stay in escape until there is extra margin for escape_clear_s seconds
+        self.esc_clear = np.where(hmin >= ap.floor_m + ap.escape_margin_m, self.esc_clear + 1, 0)
+        danger = act & ~exempt & (trigger | (self.escape & (self.esc_clear < ap.escape_clear_s)))
+        new = danger & ~self.escape
         if danger.any():
             spd = np.maximum(np.hypot(s.vx, s.vy), 5.0)
             hdg = np.arctan2(s.vy, s.vx)
             T10 = ap.lookahead_s
-            sl = self.surface_at(x + spd * T10 * np.cos(hdg + 0.8), y + spd * T10 * np.sin(hdg + 0.8))
-            sr = self.surface_at(x + spd * T10 * np.cos(hdg - 0.8), y + spd * T10 * np.sin(hdg - 0.8))
-            s0 = self.surface_at(x + spd * T10 * np.cos(hdg), y + spd * T10 * np.sin(hdg))
-            turn = s0 > surf + 5.0  # ground ahead is rising: turn towards lower terrain
-            bank = np.where(sl < sr, 1.0, -1.0) * math.radians(45.0)
+            if new.any():
+                sl = self.surface_at(x + spd * T10 * np.cos(hdg + 0.8), y + spd * T10 * np.sin(hdg + 0.8))
+                sr = self.surface_at(x + spd * T10 * np.cos(hdg - 0.8), y + spd * T10 * np.sin(hdg - 0.8))
+                self.esc_dir = np.where(new, np.where(sl < sr, 1.0, -1.0), self.esc_dir)
+            s0 = S_all[len(ks)]  # predicted point 10 s ahead
+            turn = s0 > surf + 5.0  # ground ahead is rising: keep turning towards lower terrain
+            bank = self.esc_dir * math.radians(45.0)
             phi = np.where(danger, np.where(turn, bank, 0.0), phi)
             tau = np.where(danger, 1.0, tau)
             V = np.where(danger, perf.fast_climb_speed, V)
-        self.counts["terrain_warning"] += danger & ~self.escape
+        self.counts["terrain_warning"] += new & ~quiet
         self.escape = danger
         # 2. geofence handled in the course above
         # 3. stall protection
@@ -393,8 +425,14 @@ class Autopilot:
         mode = self.mode
         dwp = np.hypot(self.tx - x, self.ty - y)
 
-        # launch complete
-        for i in np.nonzero(act & (mode == LAUNCH) & (h_surf >= self.default_band(np.arange(self.n))[0] - 10))[0]:
+        # launch: orbit climb over the pad, then straight out to the transit layer
+        for i in np.nonzero(act & (mode == LAUNCH) & (self.launch_phase == 0) &
+                            (z - self.base_z >= self.ap.launch_orbit_climb_m))[0]:
+            self.launch_phase[i] = 1
+            tx, ty = self._goal_point(self.pending[i], s, i)
+            self._waypoint(i, tx, ty)
+        for i in np.nonzero(act & (mode == LAUNCH) & (self.launch_phase == 1) &
+                            (h_surf >= self.default_band(np.arange(self.n))[0] - 10))[0]:
             g = self.pending[i]
             self.pending[i] = None
             self._apply(i, g if g is not None else Loiter(x=float(x[i]), y=float(y[i])))
@@ -449,7 +487,7 @@ class Autopilot:
 
         # energy rule
         cand = act & (mode != RTB_M) & (mode != LAUNCH)
-        if cand.any():
+        if cand.any() and (t % ap.rtb_check_s) < 1e-9 or (cand & (s.E <= ap.rtb_hard_floor * self.reserve_wh)).any():
             chi_h = np.arctan2(self.base[1] - y, self.base[0] - x)
             U_h = -(ue * np.cos(chi_h) + ve * np.sin(chi_h))
             W_c = -ue * np.sin(chi_h) + ve * np.cos(chi_h)
@@ -546,7 +584,7 @@ class Autopilot:
     # ------------------------------------------------------------------ separation
     def _separation(self, t, s: GliderState, act):
         ap = self.ap
-        ok = act & ~self.in_base_zone(s)
+        ok = act & ~self.bz
         idx = np.nonzero(ok)[0]
         if len(idx) < 2:
             return

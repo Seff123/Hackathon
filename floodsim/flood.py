@@ -323,11 +323,13 @@ class FloodTimeline:
             self._cache["_zs"] = (zs, np.cumsum(zs, axis=-1))
         return self._cache["_zs"]
 
-    def _eta(self, h):
+    def _eta(self, h, zs=None, cs=None, zc=None):
         """Water level per 100 m block: the lower of the solver stage and the
         level that holds the block's water volume over the 50 m terrain."""
         h = np.asarray(h, np.float64)
-        zs, cs = self._blocks()
+        if zs is None:
+            zs, cs = self._blocks()
+            zc = self.z_coarse
         k_n = zs.shape[-1]
         V = h * k_n
         eta_vol = np.full(h.shape, np.inf)
@@ -337,7 +339,7 @@ class FloodTimeline:
             ok = ~found & ((e <= zs[..., k]) if k < k_n else True)
             eta_vol = np.where(ok, e, eta_vol)
             found |= ok
-        eta = np.minimum(self.z_coarse + h, eta_vol)
+        eta = np.minimum(zc + h, eta_vol)
         return np.where(h > self.wet_tol, eta, -np.inf).astype(np.float32)
 
     def _eta_t(self, t):
@@ -388,7 +390,19 @@ class FloodTimeline:
         n = self.z_fine.shape[0]
         fx = np.clip((np.asarray(x) / fc).astype(np.int64), 0, n - 1)
         fy = np.clip((np.asarray(y) / fc).astype(np.int64), 0, n - 1)
-        eta = self._eta_t(t)[cy, cx]
+        key = ("eta", float(t))
+        if key in self._cache:
+            eta = self._cache[key][cy, cx]
+        else:  # only the blocks under the query points
+            T = self.depth_snap.shape[0]
+            f = float(np.clip(t / self.dt_depth, 0, T - 1))
+            i = min(int(f), max(T - 2, 0))
+            w = f - i
+            h = self.depth_snap[i][cy, cx].astype(np.float64)
+            if T > 1:
+                h = h * (1 - w) + self.depth_snap[i + 1][cy, cx].astype(np.float64) * w
+            zs, cs = self._blocks()
+            eta = self._eta(h, zs[cy, cx], cs[cy, cx], self.z_coarse[cy, cx])
         return np.maximum(eta - self.z_fine[fy, fx], 0.0)
 
     def velocity(self, x, y, t):
