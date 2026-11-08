@@ -122,17 +122,26 @@ def rejection_checks(spec: ScenarioSpec, terr: Terrain, people: Placement, cfg: 
     return fails
 
 
-def solver_check(spec: ScenarioSpec, cfg: Config) -> list[str]:
+def solver_check(spec: ScenarioSpec, cfg: Config, cache_dir="cache") -> list[str]:
     """Run the flood solver and check its peak extent; the result is kept for build_world."""
     from . import world as W
 
+    from pathlib import Path
+
     key = spec.spec_hash + cfg.world_key()
+    lo, hi = cfg.world.extent_range
+    note = Path(cache_dir) / f"extent_{key}.txt" if cache_dir else None
+    if note is not None and note.exists():  # remembered result of an earlier solver run
+        try:
+            ext = float(note.read_text())
+            if not lo <= ext <= hi:
+                return [f"solver extent {ext:.3f}"]
+        except ValueError:
+            pass
     if key in W._MEM:
         w = W._MEM[key]
     else:
-        from pathlib import Path
-
-        cached = W._cache_path(spec, "cache")
+        cached = W._cache_path(spec, cache_dir or "cache")
         w = W._load(spec, cfg, cached) if cached.exists() else None
         if w is None:
             w = W.flood_world(spec, cfg)
@@ -140,7 +149,9 @@ def solver_check(spec: ScenarioSpec, cfg: Config) -> list[str]:
             while len(W._FLOOD) > 3:
                 W._FLOOD.pop(next(iter(W._FLOOD)))
     ext = w.stats.get("peak_extent", w.peak_extent())
-    lo, hi = cfg.world.extent_range
+    if note is not None:
+        note.parent.mkdir(parents=True, exist_ok=True)
+        note.write_text(f"{ext:.6f}")
     return [] if lo <= ext <= hi else [f"solver extent {ext:.3f}"]
 
 
