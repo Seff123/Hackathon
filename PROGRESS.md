@@ -44,3 +44,12 @@ Marginal-survival value tables V[class, lead, cell] per 5-min bucket; value-shap
 
 ## Planner P5: scoring and controllers
 Block tables B[h, lead, block], travel/search time, energy feasibility, claims, spread, hysteresis, verify policy, decision log; `bayes`, `heuristic`, `survival` controllers. Equivalence, claims and feasibility tests pass.
+
+## Planner P6: compare (and P9 tooling)
+`compare`, `ablation`, `lambda-sweep`, `swarm-size` and `tune` commands; `summary.json` with mean ± SE, paired differences (CI, wins/losses), splits by flood type and swarm size, secured-survival curves, and the median demo seed. `scripts/run_experiments.py` runs the whole pipeline (tune → compare once on test seeds → ablation → sweeps).
+
+## Planner P7: bias learning / P8: prediction and base_relay comms
+Implemented with P2-P4: bias posterior from observed extents (test: a +0.3 m biased forecast is learned as b̂ ≈ −0.3 m), mass-conservative prediction of the open component, base_relay buffering of frames from drones without a radio path to base.
+
+## Viz V0-V6
+Recording hooks (rec_*.npz + events jsonl), deflated uint8 replay bundles (~1 MB per run), one offline HTML page for single replays and side-by-side compares (race line, auto callouts, truth/belief labels, keyboard controls), results charts (PNG + results.html), plotly 3D view with 6 water times and camera presets, pitch assets (compare clip MP4/GIF + key frames). Viz tests pass, including a headless-Chrome smoke screenshot.

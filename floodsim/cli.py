@@ -72,9 +72,13 @@ def _worker_build(args):
     seed, config, team, cache = args
     from .runner import make_config
     from .scenario import build_world, sample_spec
+    from .scenario import ScenarioRejected
     cfg = make_config(config, team)
     t0 = time.perf_counter()
-    spec = sample_spec(seed, cfg=cfg)
+    try:
+        spec = sample_spec(seed, cfg=cfg)
+    except ScenarioRejected as e:
+        return seed, None, str(e), round(time.perf_counter() - t0, 2), None
     w = build_world(spec, cache_dir=cache, cfg=cfg)
     return seed, spec.attempt, spec.spec_hash, round(time.perf_counter() - t0, 2), w.build_info.get("flood_cached")
 
@@ -109,6 +113,10 @@ def cmd_build_cache(args):
     t0 = time.perf_counter()
     with ProcessPoolExecutor(max_workers=workers) as ex:
         for k, (seed, att, h, dt, cached) in enumerate(ex.map(_worker_build, [(s, args.config, team, args.cache) for s in seeds])):
+            if att is None:
+                print(f"  seed {seed} rejected: {h}", flush=True)
+                rec[str(seed)] = {"attempt": None, "error": h}
+                continue
             rec[str(seed)] = {"attempt": att, "spec_hash": h}
             if (k + 1) % max(1, len(seeds) // 10) == 0:
                 print(f"  {k + 1}/{len(seeds)} worlds, {time.perf_counter() - t0:.0f} s", flush=True)

@@ -82,3 +82,11 @@
 - Soaring is allowed when battery < E_soar and the best block's score is below the median of the last 10 decisions (fleet-wide history).
 - If no block is feasible (energy), the planner sends RTB.
 - Planner overhead is ≈ 1.8 s (bayes) and ≈ 2.8 s (survival) per cached 8-drone fast episode; the performance test allows 3 s.
+
+## Visualisation (VIZ_PLAN.md)
+- The plan's `viz/` package is `floodsim/vizpage/` (the environment's `floodsim/viz.py` keeps the debug PNGs, GIF and basic 3D).
+- One template (`floodsim/vizpage/page.html`) serves both the single-run replay (map + full rail) and the compare page (two maps, each with a compact rail, plus the race line and callouts). It is written from scratch in the reference template's style, with no web fonts, so it works offline.
+- "Lives at stake" for every run (including Bayesian and heuristic runs) is computed with the survival planner's value tables applied to that run's own belief, so judges see the same yardstick on both maps.
+- results.html embeds matplotlib SVGs generated from the same summary numbers as the PNGs (instead of re-plotting with the template's JS barChart); `charts_data.json` records every plotted number for the chart test.
+- The 40 s backup clip is rendered with matplotlib (two maps + race line) as MP4/GIF; a live screen recording of the HTML page still has to be made by hand.
+- Experiments use a reduced, equal tuning budget per planner (10 trials × 20 training seeds, best 3 re-scored on 20 validation seeds) to fit the night; test seeds are then run once with the tuned parameters. Seeds whose scenario can't be generated within 50 rejection attempts (3 of the 100 test seeds) are recorded and excluded from paired statistics.
