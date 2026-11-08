@@ -85,3 +85,21 @@ def test_sanity_numbers():
     assert float(gp.stall_speed(0.0)) == pytest.approx(8.3, abs=0.1)
     assert float(gp.sink(10.5, math.radians(35))) == pytest.approx(0.55, abs=0.06)
     assert float(gp.level_power_w(14.0)) == pytest.approx(79.0, abs=3.0)
+
+
+def test_crash_into_hill():
+    """With the safety layer disabled, flying level into a ridge is flagged as a crash (not a landing)."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent))
+    from harness import Harness
+    from floodsim.config import AutopilotParams
+    from floodsim.goals import Transit
+    n = 200
+    xs = (np.arange(n) + 0.5) * 50
+    X, _ = np.meshgrid(xs, xs)
+    ridge = 50.0 + 200.0 * np.exp(-((X - 6000.0) / 500.0) ** 2)
+    h = Harness(ridge, ap=AutopilotParams(safety_floor=-1e9, layer_base_agl=40.0, layer_half_band=10.0))
+    h.place(0, 3000.0, 5000.0, 100.0, psi=0.0, goal=Transit(xy=(9500.0, 5000.0), alt_band=(-1000.0, 1000.0)))
+    h.run(600)
+    assert h.crashed[0] and not h.landed[0]
