@@ -65,3 +65,6 @@ Added `extreme_2076` (climate factor 1.4 on rain and river flow, combined floodi
 
 ## Extreme-flood diagnosis and "+crowded" modifier
 Forecast miss rate on deep water: 4% in extreme floods vs 5% in ordinary ones, so the forecast is not the cause. The percentile rank of unfound at-risk people's blocks is 0.82 (stake map) vs 0.75 (people map) in ordinary floods and 0.92 vs 0.93 in extreme floods: the maps coincide when most people are at risk. Prediction: more people help only where most are safe. Results: extreme+crowded −0.021 [−0.050, +0.008]; town_far+crowded on seeds 1-80 +0.079 [+0.041, +0.116], 21 wins / 0 losses / 35 ties. Scenario runs now accumulate in results/latest_scenarios.txt, fixing the bug where the selector kept only the last two runs.
+
+## 2076 glider
+`configs/glider_2076.toml`, an `[airframe]` config section, the false-alarm rate from config, labels and filenames for pitch clips, and `scripts/run_glider_2076.py`. On town_far+crowded (56 floods), our planner goes 0.540 → 0.757 with the 2076 glider (+0.216 [+0.173, +0.259]); Bayesian search goes 0.461 → 0.469. GIFs in site/glider2076/ (seed 71).

@@ -114,3 +114,17 @@ The environment plan sets the climate factor at "rainfall intensity × 1.0-1.4 f
 
 ## Correction: forecast quality in extreme floods
 An earlier explanation, that forecast depth errors grow in big floods, was wrong. The stage error does not depend on flood size, and the measured 30-minute miss rate on deep water is 4% in extreme floods vs 5% in ordinary ones. The measured cause of the null result is that the people map and the at-risk map coincide when most people are at risk (see the README).
+
+## 2076 glider (configs/glider_2076.toml)
+Extrapolated from historical trends, slowed where physics sets limits; same airframe size and mass (1.5 kg) as today's glider:
+- **Battery:** ×3 energy for the same battery mass (149 → 450 Wh). Lithium-ion cells gained about 3.4× from 1991 to the 2020s, about 4%/yr (Ziegler and Trancik 2021, via Our World in Data); top cells went from about 160 Wh/kg (2010) to about 300 Wh/kg (2026). ×3 over 50 years assumes that rate halves.
+- **Thermal camera:** detection range ×2 (140 → 280 m). Uncooled pixel pitch went 50 → 25 → 17 → 12 µm from the 1990s to the 2020s (SPIE papers by Raytheon, BAE, SCD). The plan's 140 m already assumes 2× today's resolution, and LWIR diffraction limits further pixel shrinkage, so the extra 2× comes from larger arrays.
+- **Comms:** 15 km, which covers the whole domain (satellite direct-to-device and mesh links).
+- **Airframe:** cd0 0.018 → 0.015, span efficiency 0.85 → 0.90, propeller efficiency 0.65 → 0.80, avionics power 25 → 15 W.
+- **Onboard recognition:** false-alarm rate 0.002 → 0.0005 per cell; confirmation 0.95 → 0.99; false-alarm rejection 0.97 → 0.995.
+- **Turnaround:** 5 min.
+
+The camera, recognition and airframe numbers are judgement calls, not fitted trends. Battery size is given in Wh because the team input `battery_life_min` is endurance at 13 m/s; a better airframe would otherwise shrink the battery. New code: a `[airframe]` config section (defaults = today's GliderParams), and `[sensor] lambda_fa` now reaches the scenario spec (the default 0.002 keeps old hashes).
+
+## Glider mass
+`configs/default.toml` mass_kg was changed from 5.0 to 1.5 by the user. Results before the 2076-glider work used 5 kg; on the crowded far-town scenario the change makes no measurable difference (+0.003 and +0.001).

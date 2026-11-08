@@ -216,6 +216,8 @@ def sample_spec(seed: int, bounds: ScenarioBounds | None = None, team: TeamInput
         b = preset_bounds(preset, b)
         overrides = {"preset": preset_tag(preset), **overrides}
     team = team or cfg.team
+    if cfg.sensor.lambda_fa != 0.002:     # sensor false-alarm rate from the config (0.002 keeps old hashes)
+        overrides = {"lambda_fa": cfg.sensor.lambda_fa, **overrides}
     attempts = [attempt] if attempt is not None else range(cfg.world.max_attempts)
     last = []
     for a in attempts:

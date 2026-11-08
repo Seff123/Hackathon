@@ -103,3 +103,16 @@ def test_crash_into_hill():
     h.place(0, 3000.0, 5000.0, 100.0, psi=0.0, goal=Transit(xy=(9500.0, 5000.0), alt_band=(-1000.0, 1000.0)))
     h.run(600)
     assert h.crashed[0] and not h.landed[0]
+
+
+def test_airframe_config_defaults_and_2076():
+    from dataclasses import asdict
+    from pathlib import Path
+    from floodsim.config import load_config
+    cfg = load_config()
+    team = cfg.team
+    assert GliderParams.from_team(team, **asdict(cfg.airframe)) == GliderParams.from_team(team)
+    c76 = load_config(Path(__file__).resolve().parents[1] / "configs" / "glider_2076.toml")
+    gp = GliderParams.from_team(c76.team, **asdict(c76.airframe))
+    assert gp.capacity_wh == 450.0 and gp.level_power_w(13.0) < GliderParams.from_team(team).level_power_w(13.0)
+    assert c76.sensor.lambda_fa < cfg.sensor.lambda_fa

@@ -113,5 +113,28 @@ This is one of about ten scenario comparisons, but the interval is well clear of
 
 The far-town demo (seed 12, +0.49) is the median of only 3 non-tied floods, so it is a large gap, not a typical one.
 
+**A 2076 glider.** `configs/glider_2076.toml` extrapolates today's glider to 2076 from historical trends, keeping the same airframe and mass (details in ASSUMPTIONS.md):
+- battery energy ×3, 150 Wh → 450 Wh;
+- thermal camera range 140 → 280 m;
+- radio covers the whole area (3 → 15 km);
+- lower-drag airframe with a better propeller, level flight 60 → 39 W;
+- 4× fewer false alarms;
+- 5-minute turnaround.
+
+Endurance goes from 2.5 h to about 11.7 h. Run on the crowded far-town scenario, seeds 1-80 (56 floods), with tuned planner parameters (`python scripts/run_glider_2076.py`):
+
+| Glider | Bayesian search | Survival-aware (ours) | At-risk people found per flood (Bayes / ours) |
+| --- | --- | --- | --- |
+| Today, 5 kg | 0.459 | 0.538 | 0.04 / 0.84 |
+| Today, 1.5 kg | 0.461 | 0.540 | 0.04 / 0.91 |
+| 2076 | 0.469 | **0.757** | 0.34 / **4.66** |
+
+- The 2076 glider adds +0.216 for our planner (95% CI [+0.173, +0.259], 48 wins / 2 losses / 6 ties) but only +0.009 for Bayesian search ([−0.004, +0.021]).
+- Our lead over Bayesian search grows from +0.080 to +0.288 ([+0.230, +0.345], 50 wins / 0 losses).
+- Mass alone (5 → 1.5 kg) changes nothing.
+- A better glider pointed at the wrong place helps little: Bayesian search uses its extra range to search the dry town (twice the area, but almost no one at risk). The survival-aware planner turns the same hardware into five times as many at-risk people found.
+- The planner parameters were tuned on the 5 kg glider; retuning for the 2076 glider was not tried.
+- GIFs of the median flood (seed 71, our planner, each glider and side by side) are in `site/glider2076/`.
+
 **Known limitations.** The value-alignment test in `tests/planner` is marked xfail: the planner's forecast underestimates depth in backwater and breach areas, so its lives-at-stake map misses some of the places where people are in danger (see ASSUMPTIONS.md). This is the most likely reason the survival weighting gains nothing over plain Bayesian search.
 

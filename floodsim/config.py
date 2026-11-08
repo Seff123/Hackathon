@@ -551,7 +551,17 @@ def _update_dc(obj, d: dict):
 
 
 @dataclass
+class AirframeParams:
+    """Airframe and power-train settings applied on top of the team inputs (defaults = GliderParams defaults)."""
+    cd0: float = 0.018
+    oswald: float = 0.85
+    prop_eff: float = 0.65
+    payload_w: float = 25.0
+
+
+@dataclass
 class Config:
+    airframe: AirframeParams = field(default_factory=AirframeParams)
     team: TeamInputs = field(default_factory=TeamInputs)
     bounds: ScenarioBounds = field(default_factory=ScenarioBounds)
     world: WorldConfig = field(default_factory=WorldConfig)

@@ -14,7 +14,8 @@ def _secured(result, t):
     return sum(f["surv"] for f in result.finds if f["at_risk"] and f["t"] <= t) / n
 
 
-def make_pitch(runs, out_dir, seconds: int = 40, fps: int = 8, keyframes=(5, 30, 60, 120)) -> Path:
+def make_pitch(runs, out_dir, seconds: int = 40, fps: int = 8, keyframes=(5, 30, 60, 120), labels=None,
+               name: str = "compare_clip", suptitle: str | None = None) -> Path:
     plt = _plt()
     from PIL import Image
     out = Path(out_dir)
@@ -25,8 +26,8 @@ def make_pitch(runs, out_dir, seconds: int = 40, fps: int = 8, keyframes=(5, 30,
     frames_all = [r.recording["frames"] for r, _ in runs]
     n_fr = min(len(f) for f in frames_all)
     idx = np.linspace(0, n_fr - 1, seconds * fps).round().astype(int)
-    labels = ["Standard Bayesian search" if r.controller == "bayes" else
-              "Survival-aware (ours)" if r.controller == "survival" else r.controller for r, _ in runs]
+    labels = labels or ["Standard Bayesian search" if r.controller == "bayes" else
+                        "Survival-aware (ours)" if r.controller == "survival" else r.controller for r, _ in runs]
     ep = world.cfg.world.episode_s
     curves = [[_secured(r, f["t"]) for f in frames_all[k][:n_fr]] for k, (r, _) in enumerate(runs)]
     ts = [f["t"] / 60 for f in frames_all[0][:n_fr]]
@@ -67,18 +68,18 @@ def make_pitch(runs, out_dir, seconds: int = 40, fps: int = 8, keyframes=(5, 30,
         ax.set_xlim(0, ep / 60)
         ax.set_xlabel("minutes after launch"); ax.set_ylabel("survival secured")
         ax.legend(frameon=False, loc="upper left", fontsize=9)
-        fig.suptitle(f"Same flood, same drones, same sensors · t = {t / 60:.0f} min (amber: lives at stake, as estimated by our planner; "
-                     f"blue: flood, truth)", fontsize=10)
+        fig.suptitle(f"{suptitle or 'Same flood, same drones, same sensors'} · t = {t / 60:.0f} min "
+                     f"(amber: lives at stake, as estimated by our planner; blue: flood, truth)", fontsize=10)
         fig.canvas.draw()
         return Image.fromarray(np.asarray(fig.canvas.buffer_rgba())[..., :3].copy())
 
     for j in idx:
         imgs.append(draw(int(j)))
-    imgs[0].save(out / "compare_clip.gif", save_all=True, append_images=imgs[1:], duration=int(1000 / fps), loop=0,
+    imgs[0].save(out / f"{name}.gif", save_all=True, append_images=imgs[1:], duration=int(1000 / fps), loop=0,
                  optimize=True)
-    _maybe_mp4(imgs, out / "compare_clip.mp4", fps)
+    _maybe_mp4(imgs, out / f"{name}.mp4", fps)
     for m in keyframes:
         j = min(int(m * 60 / 30), n_fr - 1)
-        draw(j).save(out / f"keyframe_{m:03d}min.png")
+        draw(j).save(out / f"{name}_{m:03d}min.png" if name != "compare_clip" else out / f"keyframe_{m:03d}min.png")
     plt.close(fig)
     return out

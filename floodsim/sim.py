@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import math
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -140,7 +140,7 @@ class Sim:
         self.spec = spec
         self.n = int(n_drones or self.cfg.n_drones or spec.n_drones)
         n = self.n
-        self.gp = GliderParams.from_team(spec.team)
+        self.gp = GliderParams.from_team(spec.team, **asdict(wcfg.airframe))
         self.table = PerfTable(self.gp)
         self.ap_params = wcfg.autopilot
         cp = controller_params or getattr(controller, "params", None) or wcfg.controller

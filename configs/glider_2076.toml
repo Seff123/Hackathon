@@ -1,0 +1,41 @@
+# FloodSim: a very good 2076 glider. Same airframe size and mass as configs/default.toml; every change below is an
+# extrapolation of a historical trend to 2076 (50 years), slowed where physics sets a limit. See ASSUMPTIONS.md
+# ("2076 glider") for the reasoning and sources. Run with --config configs/glider_2076.toml.
+
+[team]
+mass_kg = 1.5
+# Battery: same battery mass, 3x the energy. Lithium-ion cells gained ~3.4x in energy density from 1991 to today
+# (~4%/yr); top cells went from ~160 Wh/kg (2010) to ~300 Wh/kg (2026). 3x over 50 years assumes the rate halves
+# (~2.2%/yr). Today's 149 Wh (150 min at 13 m/s with the default airframe) -> 450 Wh.
+battery_wh = 450.0
+battery_life_min = 450.0      # only used for validation when battery_wh is set
+# Swapping and fast charging: 10 -> 5 min turnaround.
+charge_time_min = 5.0
+# Comms: satellite direct-to-device and mesh links cover the whole 10 km domain (today's placeholder 3 km).
+signal_radius_km = 15.0
+# Thermal camera: uncooled pixel pitch went 50 -> 25 -> 17 -> 12 um (1990s-2020s) and formats from 320x240 to
+# 640x512. The plan's 140 m already assumes 2x today's linear resolution; LWIR diffraction stops the pitch shrinking
+# much further, so 2076 gains come from larger arrays: 2x more linear resolution again -> 280 m detection range.
+camera_range_m = 280.0
+
+[airframe]
+# Laminar-flow, morphing wings and better small propellers. Profile drag -17%, span efficiency 0.85 -> 0.90,
+# propeller efficiency 0.65 -> 0.80 (large propellers reach 0.85+ today), avionics and camera power 25 -> 15 W.
+cd0 = 0.015
+oswald = 0.90
+prop_eff = 0.80
+payload_w = 15.0
+
+[sensor]
+# Onboard recognition: 4x fewer false alarms per cell, more reliable confirmation orbits.
+lambda_fa = 0.0005
+verify_confirm_p = 0.99
+verify_reject_fa_p = 0.995
+
+[sim]
+swap = true
+
+[controller]
+search_height_frac = 0.6
+e_soar = 0.6
+w_enter = 0.8
