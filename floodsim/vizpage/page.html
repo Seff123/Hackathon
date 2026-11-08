@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><!--TITLE--></title>
+<style>
+/* Incident-room console: map(s) are the hero; the rail is what an incident commander scans. Fully offline. */
+:root {
+  --bg: #eef1f3; --panel: #ffffff; --ink: #17222b; --muted: #5b6b77; --line: #d5dde3;
+  --water: #1f6fc2; --hazard: #c9771a; --good: #23845a; --bad: #c2362f; --accent: #1f6fc2; --belief: #7b4fb8;
+  --seen: #c0399a; --map-bg: #dfe5e8;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0f161c; --panel: #16212a; --ink: #e3eaef; --muted: #93a4b1; --line: #263540;
+    --water: #4ea1f0; --hazard: #f0a443; --good: #45c08a; --bad: #ef6a60; --accent: #4ea1f0; --belief: #b08ae6; --map-bg: #1b2731; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0f161c; --panel: #16212a; --ink: #e3eaef; --muted: #93a4b1; --line: #263540;
+  --water: #4ea1f0; --hazard: #f0a443; --good: #45c08a; --bad: #ef6a60; --accent: #4ea1f0; --belief: #b08ae6; --map-bg: #1b2731; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 18px 20px 48px; display: grid; gap: 16px; }
+header { display: grid; gap: 4px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 32px; margin: 0; text-wrap: balance; }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; margin: 0; color: var(--muted); }
+p { margin: 0; max-width: 90ch; }
+.lede { color: var(--muted); }
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+button:focus-visible, input:focus-visible, select:focus-visible, .log div:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 10px; align-content: start; }
+.console { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+.console.compare { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 900px) { .console, .console.compare { grid-template-columns: 1fr; } }
+.maphead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.maphead h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; margin: 0; }
+.mapbox { position: relative; }
+canvas.map { width: 100%; aspect-ratio: 1 / 1; display: block; border-radius: 6px; background: var(--map-bg); cursor: crosshair; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; display: none; z-index: 5; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+.tag { font-size: 11px; font-weight: 600; border-radius: 99px; padding: 1px 7px; white-space: nowrap; }
+.tag.truth { color: var(--hazard); border: 1px solid var(--hazard); }
+.tag.belief { color: var(--belief); border: 1px solid var(--belief); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.controls input[type=range] { flex: 1 1 220px; accent-color: var(--accent); }
+.btn { font: 600 14px var(--font-body); border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.clock { font-family: var(--font-mono); font-size: 18px; min-width: 70px; }
+.toggles { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; color: var(--muted); align-items: center; }
+.toggles label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 14px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.kpi { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; gap: 2px; }
+.kpi .v { font-family: var(--font-mono); font-size: 21px; font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: 12px; color: var(--muted); }
+.fleet { display: grid; gap: 6px; }
+.gl { display: grid; grid-template-columns: 34px 86px minmax(0, 1fr) 42px; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+.gl.sel { outline: 2px solid var(--accent); border-radius: 4px; }
+.gl .id { font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 5px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.pill { font-size: 12px; font-weight: 600; border-radius: 99px; padding: 1px 8px; text-align: center; border: 1px solid var(--line); white-space: nowrap; }
+.pill.search { color: var(--accent); border-color: var(--accent); } .pill.verify { color: var(--hazard); border-color: var(--hazard); }
+.pill.rtb { background: var(--line); } .pill.ground { color: var(--good); border-color: var(--good); } .pill.down { color: #fff; background: var(--bad); border-color: var(--bad); }
+.pill.thermal { color: var(--seen); border-color: var(--seen); }
+.batt { position: relative; height: 13px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line); }
+.batt .fill { position: absolute; inset: 0 auto 0 0; background: var(--good); border-radius: 2px; }
+.batt .res { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+.bars { display: grid; gap: 4px; }
+.bar { display: grid; grid-template-columns: 112px minmax(0, 1fr) 42px; gap: 8px; align-items: center; font-size: 13px; }
+.bar .track { height: 10px; background: var(--bg); border-radius: 2px; position: relative; border: 1px solid var(--line); }
+.bar .track i { position: absolute; inset: 0 auto 0 0; background: var(--belief); border-radius: 2px; }
+.bar .track b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .two { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.log { display: grid; gap: 3px; font-size: 13px; max-height: 210px; overflow: auto; }
+.log div { display: grid; grid-template-columns: 46px 30px minmax(0, 1fr); gap: 6px; cursor: pointer; border-radius: 4px; padding: 1px 2px; }
+.log div:hover { background: var(--bg); }
+.k.confirm { color: var(--good); } .k.reject, .k.down { color: var(--bad); } .k.detect { color: var(--hazard); } .k.decision { color: var(--accent); }
+.note { font-size: 13px; color: var(--muted); }
+.wind { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: center; }
+.race svg { width: 100%; height: auto; display: block; }
+.race svg text { fill: var(--ink); font-size: 12px; font-family: var(--font-body); }
+.callouts { display: grid; gap: 6px; margin: 0; padding-left: 18px; }
+.callouts li.A { color: var(--muted); }
+.abtoggle { display: none; gap: 6px; }
+@media (max-width: 900px) { .compare .abtoggle { display: flex; } .compare.showA .runB, .compare.showB .runA { display: none; } }
+footer { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title"></h1>
+    <p class="lede" id="subtitle"></p>
+  </header>
+  <section class="panel" id="ctrl">
+    <div class="controls">
+      <button class="btn primary" id="play" type="button" aria-label="Play or pause (Space)">Play</button>
+      <span class="clock" id="clock">0:00</span>
+      <input type="range" id="scrub" min="0" max="1" step="0.001" value="0" aria-label="Mission time (arrow keys step 30 s)">
+      <label class="note" for="speed">Speed</label>
+      <select id="speed" class="btn"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option></select>
+      <span class="abtoggle" role="group" aria-label="Show run"><button class="btn" type="button" id="showA">A</button><button class="btn" type="button" id="showB">B</button></span>
+    </div>
+    <div class="toggles" role="group" aria-label="Map layers">
+      <label><input type="radio" name="heat" value="stake" checked> Lives at stake <span class="tag belief" data-kind="belief">as estimated by our planner</span></label>
+      <label><input type="radio" name="heat" value="lam"> Where people may be <span class="tag belief" data-kind="belief">fleet's belief</span></label>
+      <label><input type="radio" name="heat" value="off"> No heatmap</label>
+      <label><input type="checkbox" id="fline" checked> Forecast line <span class="tag belief" data-kind="belief">fleet's belief</span></label>
+      <label><input type="checkbox" id="truth" data-truth="1"> Show hidden truth <span class="tag truth" data-kind="truth">truth, hidden from the fleet</span></label>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--water);opacity:.6"></i>Flood depth <span class="tag truth" data-kind="truth">truth, hidden from the fleet</span></span>
+      <span><i class="sw" style="border-top:2px dashed var(--water);height:0"></i>Predicted waterline in 20 min <span class="tag belief">fleet's belief</span></span>
+      <span><i class="sw" style="background:var(--hazard)"></i>Lives at stake</span>
+      <span><i class="sw" style="background:var(--belief)"></i>Where people may be</span>
+      <span><i class="sw" style="background:var(--seen);opacity:.35"></i>Area searched</span>
+      <span><i class="sw" style="background:var(--good);border-radius:50%;width:10px"></i>Confirmed survivor</span>
+      <span>Line style: solid search · dashed transit · dotted thermal · thick verify · grey return</span>
+    </div>
+  </section>
+  <section class="console" id="console"></section>
+  <section class="panel race" id="racebox" hidden>
+    <h3>Survival secured over time <span class="tag truth" data-kind="truth">scored from the truth</span></h3>
+    <p class="note">Cumulative survival probability, frozen at confirmation, of people the flood reached, per at-risk person. Higher and earlier is better.</p>
+    <div id="race"></div>
+    <h3>What happened</h3>
+    <ul class="callouts" id="callouts"></ul>
+  </section>
+  <footer>FloodSim: synthetic terrain, flood, wind and survivors. Truth layers are labelled; everything the drones decided on came from the fleet's belief and the noisy forecast.</footer>
+</div>
+<!--BUNDLES-->
+<script id="page" type="application/json">/*PAGE*/{}</script>
+<script>
+"use strict";
+const PAGE = JSON.parse(document.getElementById("page").textContent);
+const RAW = [...document.querySelectorAll("script.bundle")].map(s => JSON.parse(s.textContent));
+const GCOL = ["#e4572e", "#7b5cd6", "#17a398", "#d9a400", "#3f88c5", "#c73e9b", "#5b8c2a", "#8c564b"];
+const MODE = {search: "Searching", transit: "Transit", thermal: "Thermal", verify: "Verifying", rtb: "Returning", ground: "On ground", down: "Down"};
+const COMP = {home: "At home", home_low: "Low-lying homes", road: "In vehicles", open: "Outdoors", high_ground: "High ground", anywhere: "Anywhere"};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Grids are [iy, ix] with row 0 in the SOUTH; canvas row 0 is the TOP. This is the one place we flip.
+function gridToCanvas(iy, ix, ny, cellPx) { return [ix * cellPx, (ny - 1 - iy) * cellPx]; }
+function worldToCanvas(x, y, L, W) { return [x / L * W, (1 - y / L) * W]; }
+
+async function inflate(b64) {
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const ds = new DecompressionStream("deflate");
+  const buf = await new Response(new Blob([bin]).stream().pipeThrough(ds)).arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+let runs = [], T = 0, tIdx = 0, playing = false, last = 0, selDrone = null, NX = 100, NY = 100, L = 10000;
+
+async function boot() {
+  for (const b of RAW) {
+    const r = {b, g: {}};
+    for (const k of Object.keys(b.grids)) r.g[k] = await inflate(b.grids[k].data);
+    r.elev = await inflate(b.static.elev_u8); r.lc = await inflate(b.static.landcover_u8); r.river = await inflate(b.static.river_u8);
+    runs.push(r);
+  }
+  const m = runs[0].b.meta;
+  NX = m.grid.nx; NY = m.grid.ny; L = NX * m.grid.cell_m;
+  T = Math.min(...runs.map(r => r.b.frames.length));
+  document.getElementById("title").textContent = PAGE.title || m.label;
+  const wd = Math.round(m.wind_dir_deg);
+  document.getElementById("subtitle").textContent = (PAGE.subtitle ? PAGE.subtitle + " · " : "") +
+    `seed ${m.seed} · ${m.flood_type} flood · ${m.n_drones} gliders · wind ${m.wind_ms.toFixed(1)} m/s from ${wd}°`;
+  buildConsole();
+  runs.forEach(r => r.terrain = terrainLayer(r));
+  if (runs.length > 1) buildRace();
+  // complete at rest: open on the first confirmed find of the last run (ours), or minute 40
+  const lastRun = runs[runs.length - 1].b;
+  const firstFind = lastRun.people.map(p => p.t_found).filter(t => t !== null).sort((a, b) => a - b)[0];
+  const t0 = firstFind !== undefined ? firstFind + 60 : 40 * 60;
+  tIdx = Math.min(T - 1, Math.round(t0 / m.frame_dt_s));
+  const sc = document.getElementById("scrub"); sc.max = T - 1; sc.step = 0.01; sc.value = tIdx;
+  render();
+  requestAnimationFrame(loop);
+}
+
+function buildConsole() {
+  const con = document.getElementById("console");
+  const cmp = runs.length > 1;
+  if (cmp) { con.classList.add("compare", "showB"); document.getElementById("racebox").hidden = false; }
+  runs.forEach((r, i) => {
+    const col = document.createElement("div");
+    col.className = "panel run" + (cmp ? (i === 0 ? " runA" : " runB") : "");
+    col.innerHTML = `<div class="maphead"><h2>${cmp ? (i === 0 ? "A · " : "B · ") : ""}${r.b.meta.label}</h2><span class="note">${r.b.meta.controller}</span></div>
+      <div class="mapbox"><canvas class="map" width="800" height="800" aria-label="Map: flood, gliders and search heatmap for ${r.b.meta.label}"></canvas><div class="tip"></div></div>
+      <div class="kpis">
+        <div class="kpi"><span class="v k-sec">0.00</span><span class="l">Survival secured <span class="tag truth" data-kind="truth">truth</span></span></div>
+        <div class="kpi"><span class="v k-found">0</span><span class="l">People confirmed</span></div>
+        <div class="kpi"><span class="v k-risk">0</span><span class="l">At-risk found <span class="tag truth" data-kind="truth">truth</span></span></div>
+        <div class="kpi"><span class="v k-air">0</span><span class="l">Airborne / lost</span></div>
+      </div>`;
+    if (!cmp) {
+      con.appendChild(col);
+      const rail = document.createElement("div");
+      rail.className = "panel";
+      rail.innerHTML = railHTML();
+      con.appendChild(rail);
+      r.rail = rail;
+    } else {
+      const rail = document.createElement("div");
+      rail.innerHTML = railHTML(true);
+      col.appendChild(rail);
+      r.rail = rail;
+      con.appendChild(col);
+    }
+    r.col = col;
+    r.canvas = col.querySelector("canvas");
+    r.tip = col.querySelector(".tip");
+    r.canvas.addEventListener("mousemove", e => hover(r, e));
+    r.canvas.addEventListener("mouseleave", () => r.tip.style.display = "none");
+  });
+  document.getElementById("showA").onclick = () => { con.classList.remove("showB"); con.classList.add("showA"); };
+  document.getElementById("showB").onclick = () => { con.classList.remove("showA"); con.classList.add("showB"); };
+}
+
+function railHTML(compact) {
+  return `<h3>Fleet · battery and energy needed to get home</h3><div class="fleet"></div>
+    <p class="note">The black tick is the autopilot's return trigger (energy needed to get home). When the fill reaches it, the glider turns for home.</p>
+    <div class="two"><div class="bars"><h3>Is the forecast right? <span class="tag belief">fleet's belief</span></h3><div class="fbias"></div></div>
+    <div class="bars"><h3>Where did people go? <span class="tag belief">fleet's belief</span></h3><div class="scen"></div></div></div>
+    <div class="wind"><canvas class="compass" width="152" height="152" style="width:76px;height:76px" aria-label="Wind compass"></canvas><div class="note windtxt"></div></div>
+    <h3>Decisions (with why)</h3><div class="log" aria-live="polite"></div>`;
+}
+
+function terrainLayer(r) {
+  const c = document.createElement("canvas"); c.width = NX; c.height = NY;
+  const x = c.getContext("2d"), img = x.createImageData(NX, NY);
+  const dark = document.documentElement.dataset.theme === "dark" || (matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light");
+  const tint = dark ? [[46, 52, 50], [30, 70, 120], [70, 52, 48], [34, 58, 40]] : [[226, 224, 212], [120, 165, 214], [222, 198, 186], [170, 196, 160]];
+  for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
+    const i = iy * NX + ix, z = r.elev[i];
+    const zx = r.elev[iy * NX + Math.min(ix + 1, NX - 1)], zy = r.elev[Math.min(iy + 1, NY - 1) * NX + ix];
+    const shade = Math.max(-1, Math.min(1, ((zx - z) * -1 + (zy - z)) / 10));
+    const t = r.river[i] ? tint[1] : tint[r.lc[i]] || tint[0];
+    const k = 0.82 + 0.18 * shade + (dark ? -0.1 : 0) * (z / 255);
+    const o = ((NY - 1 - iy) * NX + ix) * 4;   // flip rows: south at the bottom
+    img.data.set([t[0] * k, t[1] * k, t[2] * k, 255], o);
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+
+function frameOf(r, k) { return r.b.frames[Math.max(0, Math.min(r.b.frames.length - 1, k))]; }
+function gridVal(r, key, k, i) { return r.g[key][k * NX * NY + i] / 255; }
+
+function render() {
+  const k0 = Math.floor(tIdx), a = tIdx - k0;
+  const t = frameOf(runs[0], k0).t + a * runs[0].b.meta.frame_dt_s;
+  document.getElementById("clock").textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  document.getElementById("scrub").value = tIdx;
+  runs.forEach(r => { drawMap(r, k0, a, t); drawRail(r, k0, t); });
+  if (runs.length > 1) drawRaceCursor(t);
+}
+
+function drawMap(r, k0, a, t) {
+  const cv = r.canvas, c = cv.getContext("2d"), W = cv.width, S = W / NX;
+  c.imageSmoothingEnabled = false; c.clearRect(0, 0, W, W);
+  c.drawImage(r.terrain, 0, 0, W, W);
+  const water = css("--water"), hazard = css("--hazard"), belief = css("--belief"), ink = css("--ink"), good = css("--good"), bad = css("--bad"), seen = css("--seen");
+  const off = k0 * NX * NY;
+  // searched veil
+  c.fillStyle = seen;
+  for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
+    const v = r.g.seen[off + iy * NX + ix]; if (!v) continue;
+    const [px, py] = gridToCanvas(iy, ix, NY, S); c.globalAlpha = 0.06 + 0.05 * v; c.fillRect(px, py, S + .5, S + .5);
+  }
+  // heat (never both)
+  const mode = document.querySelector('input[name="heat"]:checked').value;
+  if (mode !== "off") {
+    c.fillStyle = mode === "stake" ? hazard : belief;
+    const key = mode === "stake" ? "stake" : "lam";
+    for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
+      const v = r.g[key][off + iy * NX + ix] / 255; if (v < 0.05) continue;
+      const [px, py] = gridToCanvas(iy, ix, NY, S); c.globalAlpha = Math.min(0.8, v * 0.9); c.fillRect(px, py, S + .5, S + .5);
+    }
+  }
+  // flood depth (truth), alpha by depth
+  c.fillStyle = water;
+  for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
+    const d = r.g.depth[off + iy * NX + ix] / 255 * r.b.grids.depth.max; if (d < 0.1) continue;
+    const [px, py] = gridToCanvas(iy, ix, NY, S); c.globalAlpha = Math.min(0.85, 0.25 + d / 3 * 0.6); c.fillRect(px, py, S + .5, S + .5);
+  }
+  c.globalAlpha = 1;
+  // forecast waterline +20 min (fleet's belief): contour of P_flood = 0.5
+  if (document.getElementById("fline").checked) {
+    c.strokeStyle = water; c.lineWidth = Math.max(1.5, S * 0.22); c.setLineDash([S * 0.6, S * 0.4]); c.beginPath();
+    const wet = (iy, ix) => r.g.pflood20[off + iy * NX + ix] / 255 >= 0.5;
+    for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
+      const [px, py] = gridToCanvas(iy, ix, NY, S);
+      if (ix + 1 < NX && wet(iy, ix) !== wet(iy, ix + 1)) { c.moveTo(px + S, py); c.lineTo(px + S, py + S); }
+      if (iy + 1 < NY && wet(iy, ix) !== wet(iy + 1, ix)) { c.moveTo(px, py); c.lineTo(px + S, py); }
+    }
+    c.stroke(); c.setLineDash([]);
+  }
+  const P = (x, y) => worldToCanvas(x, y, L, W);
+  // roads, river, levees
+  c.strokeStyle = ink; c.globalAlpha = 0.45; c.lineWidth = 1.2;
+  for (const rd of r.b.static.roads) { c.beginPath(); rd.forEach(([x, y], j) => { const [px, py] = P(x, y); j ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke(); }
+  c.globalAlpha = 0.9; c.strokeStyle = "#7a4e2d"; c.lineWidth = 2.5;
+  for (const lv of r.b.static.levees) { if (lv.length < 2) continue; c.beginPath(); lv.forEach(([x, y], j) => { const [px, py] = P(x, y); j ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke(); }
+  c.globalAlpha = 1;
+  // thermals: dotted circles
+  c.strokeStyle = hazard; c.setLineDash([2, 4]); c.lineWidth = 1;
+  for (const [x, y, rt] of r.b.static.thermals) { const [px, py] = P(x, y); c.beginPath(); c.arc(px, py, Math.max(3, rt / L * W), 0, 7); c.stroke(); }
+  c.setLineDash([]);
+  // towns and base
+  c.fillStyle = ink; c.textAlign = "center"; c.font = `600 ${Math.round(W / 50)}px ${css("--font-display")}`;
+  for (const [n, x, y, rr] of r.b.static.towns) { const [px, py] = P(x, y + rr * 0.75); c.globalAlpha = 0.85; c.fillText(n.toUpperCase(), px, py); }
+  c.globalAlpha = 1;
+  const [bx, by] = P(...r.b.static.base);
+  c.beginPath(); c.moveTo(bx, by - 9); c.lineTo(bx + 8, by + 6); c.lineTo(bx - 8, by + 6); c.closePath(); c.fill();
+  // people: confirmed survivors (green dot + ring); hidden truth (hollow glyphs) only when toggled
+  const showTruth = document.getElementById("truth").checked;
+  for (const p of r.b.people) {
+    const tr = p.track; let cur = tr[0];
+    for (const kf of tr) { if (kf[0] <= t) cur = kf; else break; }
+    const [px, py] = P(cur[1], cur[2]);
+    if (p.t_found !== null && p.t_found <= t) {
+      c.fillStyle = good; c.beginPath(); c.arc(px, py, 4.5, 0, 7); c.fill();
+      c.strokeStyle = good; c.lineWidth = 1.6; c.beginPath(); c.arc(px, py, 8.5, 0, 7); c.stroke();
+    } else if (showTruth) {
+      c.strokeStyle = p.at_risk ? bad : ink; c.globalAlpha = p.at_risk ? 0.95 : 0.55; c.lineWidth = 1.6;
+      glyph(c, cur[3], px, py, 5); c.globalAlpha = 1;
+    }
+  }
+  // gliders: trail (mode line styles), goal line, body
+  const f0 = frameOf(r, k0), f1 = frameOf(r, k0 + 1);
+  f0.drones.forEach((g, i) => {
+    const g1 = f1.drones[i];
+    if (g[4] === "ground" && g1[4] === "ground") return;
+    const dim = selDrone !== null && selDrone !== i;
+    for (let k = Math.max(1, k0 - 30); k <= k0; k++) {
+      const p0 = frameOf(r, k - 1).drones[i], p1 = frameOf(r, k).drones[i];
+      if (p1[4] === "ground" || p0[4] === "ground") continue;
+      const md = p1[4];
+      c.strokeStyle = md === "rtb" ? "#8a8f94" : GCOL[i % 8];
+      c.lineWidth = md === "verify" ? 3.2 : 1.6; c.globalAlpha = dim ? 0.15 : 0.75;
+      c.setLineDash(md === "transit" ? [6, 4] : md === "thermal" ? [1.5, 3] : []);
+      const [ax, ay] = P(p0[0], p0[1]), [bx2, by2] = P(p1[0], p1[1]);
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx2, by2); c.stroke();
+    }
+    c.setLineDash([]); c.globalAlpha = 1;
+    const x = g[0] + (g1[0] - g[0]) * a, y = g[1] + (g1[1] - g[1]) * a;
+    const [px, py] = P(x, y);
+    if (g[5] && g[5].box && !dim) {
+      const bb = g[5].box, [qx, qy] = P(bb[0], bb[3]), [rx, ry] = P(bb[2], bb[1]);
+      c.strokeStyle = GCOL[i % 8]; c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeRect(qx, qy, rx - qx, ry - qy); c.setLineDash([]);
+    }
+    const ang = Math.atan2(-(g1[1] - g[1]), (g1[0] - g[0]) || 1e-3);
+    c.save(); c.translate(px, py); c.rotate(ang); c.globalAlpha = dim ? 0.35 : 1;
+    c.fillStyle = g[4] === "down" ? bad : GCOL[i % 8]; c.strokeStyle = css("--panel"); c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(10, 0); c.lineTo(-7, 6.5); c.lineTo(-3.5, 0); c.lineTo(-7, -6.5); c.closePath(); c.fill(); c.stroke();
+    c.restore(); c.globalAlpha = 1;
+  });
+}
+
+function glyph(c, state, x, y, s) {
+  c.beginPath();
+  if (state === "home_inside") c.rect(x - s, y - s, 2 * s, 2 * s);
+  else if (state === "roof") { c.moveTo(x, y - s * 1.2); c.lineTo(x + s, y + s * .8); c.lineTo(x - s, y + s * .8); c.closePath(); }
+  else if (state === "vehicle") { c.moveTo(x, y - s * 1.2); c.lineTo(x + s * 1.1, y); c.lineTo(x, y + s * 1.2); c.lineTo(x - s * 1.1, y); c.closePath(); }
+  else if (state === "in_water") { c.arc(x, y, s, 0, 7); c.stroke(); c.beginPath(); c.arc(x, y, s * 0.45, 0, 7); }
+  else c.arc(x, y, s, 0, 7);
+  c.stroke();
+}
+
+function drawRail(r, k0, t) {
+  const f = frameOf(r, k0), rl = r.rail, col = r.col;
+  col.querySelector(".k-sec").textContent = f.kpi.secured.toFixed(2);
+  col.querySelector(".k-found").textContent = f.kpi.found;
+  col.querySelector(".k-risk").textContent = `${f.kpi.at_risk_found}/${r.b.meta.n_at_risk}`;
+  col.querySelector(".k-air").textContent = `${f.kpi.airborne} / ${f.kpi.lost}`;
+  rl.querySelector(".fleet").innerHTML = f.drones.map((g, i) => {
+    const pct = Math.max(0, g[3] * 100), res = Math.min(100, g[6] * 100), low = pct - res < 6;
+    const h = g[5] && g[5].h ? ` · ${Math.round(g[5].h)} m` : "";
+    return `<div class="gl${selDrone === i ? " sel" : ""}" data-i="${i}" title="G${i + 1}: ${MODE[g[4]] || g[4]}${h}"><span class="id"><i class="dot" style="background:${GCOL[i % 8]}"></i>G${i + 1}</span>
+      <span class="pill ${g[4]}">${MODE[g[4]] || g[4]}</span>
+      <span class="batt" title="Battery ${pct.toFixed(0)}%, energy needed to get home ${res.toFixed(0)}%"><i class="fill" style="width:${pct}%;background:${low ? "var(--hazard)" : "var(--good)"}"></i>${["search", "verify", "transit", "thermal"].includes(g[4]) ? `<i class="res" style="left:${res}%"></i>` : ""}</span>
+      <span class="num">${pct.toFixed(0)}%</span></div>`;
+  }).join("");
+  rl.querySelectorAll(".gl").forEach(el => el.onclick = () => { const i = +el.dataset.i; selDrone = selDrone === i ? null : i; render(); });
+  const bl = f.belief;
+  if (bl) {
+    const b = bl.bias_m, pos = 50 + b / 0.5 * 50;
+    rl.querySelector(".fbias").innerHTML = `<div class="bar"><span>Forecast bias</span><span class="track"><b style="left:50%"></b><i style="left:${Math.min(pos, 50)}%;width:${Math.abs(pos - 50)}%"></i></span><span class="num">${b >= 0 ? "+" : ""}${b.toFixed(2)}</span></div>
+      <p class="note">${Math.abs(b) < 0.05 ? "Fleet believes the forecast is about right." : `Fleet believes the forecast is running ${Math.abs(b).toFixed(1)} m ${b > 0 ? "low" : "high"}.`}</p>`;
+    const w = bl.w, sum = w.reduce((s, v) => s + v, 0) || 1;
+    rl.querySelector(".scen").innerHTML = r.b.meta.components.map((n, j) =>
+      `<div class="bar"><span>${COMP[n] || n}</span><span class="track"><i style="width:${w[j] / sum * 100}%"></i></span><span class="num">${Math.round(w[j] / sum * 100)}%</span></div>`).join("") +
+      `<p class="note">Head count ≈ ${bl.count_scale.toFixed(2)}× expected</p>`;
+    windPanel(rl, bl.wind, r.b.meta.wind_true);
+  } else {
+    rl.querySelector(".fbias").innerHTML = `<p class="note">This method does not use the forecast.</p>`;
+    rl.querySelector(".scen").innerHTML = `<p class="note">This method keeps no belief about where people are.</p>`;
+    windPanel(rl, null, r.b.meta.wind_true);
+  }
+  const ev = r.b.events.filter(e => e.t <= t && (selDrone === null || e.drone === selDrone) && e.kind !== "detect").slice(-8).reverse();
+  rl.querySelector(".log").innerHTML = ev.map(e => `<div tabindex="0" data-t="${e.t}"><span class="num">${Math.floor(e.t / 60)}:${String(Math.floor(e.t % 60)).padStart(2, "0")}</span><span class="k ${e.kind}">G${e.drone + 1}</span><span>${e.text}</span></div>`).join("") || `<p class="note">Launching…</p>`;
+  rl.querySelectorAll(".log div").forEach(el => { const go = () => { tIdx = Math.min(T - 1, +el.dataset.t / runs[0].b.meta.frame_dt_s); playing = false; setPlay(); render(); }; el.onclick = go; el.onkeydown = e => { if (e.key === "Enter") go(); }; });
+}
+
+function windPanel(rl, est, tru) {
+  const cv = rl.querySelector(".compass"), c = cv.getContext("2d"), R0 = 64, cx = 76, cy = 76;
+  c.clearRect(0, 0, 152, 152);
+  c.strokeStyle = css("--line"); c.lineWidth = 2; c.beginPath(); c.arc(cx, cy, R0, 0, 7); c.stroke();
+  c.fillStyle = css("--muted"); c.font = "600 18px sans-serif"; c.textAlign = "center"; c.fillText("N", cx, 22);
+  const arrow = (u, v, col, w) => {
+    const sc = R0 / 10; c.strokeStyle = col; c.fillStyle = col; c.lineWidth = w;
+    const ex = cx + u * sc, ey = cy - v * sc;
+    c.beginPath(); c.moveTo(cx - u * sc, cy + v * sc); c.lineTo(ex, ey); c.stroke();
+    const an = Math.atan2(ey - cy, ex - cx); c.beginPath(); c.moveTo(ex, ey);
+    c.lineTo(ex - 12 * Math.cos(an - .45), ey - 12 * Math.sin(an - .45)); c.lineTo(ex - 12 * Math.cos(an + .45), ey - 12 * Math.sin(an + .45)); c.fill();
+  };
+  arrow(tru[0], tru[1], css("--hazard"), 3);
+  if (est) arrow(est[0], est[1], css("--belief"), 5);
+  rl.querySelector(".windtxt").innerHTML = (est ? `<b style="color:var(--belief)">Fleet's wind estimate</b> <span class="num">${Math.hypot(est[0], est[1]).toFixed(1)} ± ${est[2].toFixed(1)} m/s</span><br>` : "") +
+    `<b style="color:var(--hazard)">True wind at 10 m</b> <span class="tag truth" data-kind="truth">truth</span> <span class="num">${Math.hypot(tru[0], tru[1]).toFixed(1)} m/s</span>`;
+}
+
+function hover(r, e) {
+  const rect = r.canvas.getBoundingClientRect();
+  const fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
+  const ix = Math.floor(fx * NX), iy = NY - 1 - Math.floor(fy * NY);
+  if (ix < 0 || iy < 0 || ix >= NX || iy >= NY) return;
+  const k0 = Math.floor(tIdx), i = iy * NX + ix, off = k0 * NX * NY;
+  const d = r.g.depth[off + i] / 255 * r.b.grids.depth.max;
+  const pf = r.g.pflood20[off + i] / 255;
+  const lam = Math.pow(r.g.lam[off + i] / 255, 2) * r.b.grids.lam.max;
+  const st = Math.pow(r.g.stake[off + i] / 255, 2) * r.b.grids.stake.max;
+  r.tip.innerHTML = `<div>Depth now <b class="num">${d.toFixed(2)} m</b> <span class="tag truth" data-kind="truth">truth</span></div>
+    <div>P(flooded) in 20 min <b class="num">${(pf * 100).toFixed(0)}%</b> <span class="tag belief">fleet's belief</span></div>
+    <div>People may be here <b class="num">${lam.toFixed(3)}</b> <span class="tag belief">fleet's belief</span></div>
+    <div>Lives at stake <b class="num">${st.toFixed(3)}</b> <span class="tag belief">our planner</span></div>`;
+  r.tip.style.display = "block";
+  r.tip.style.left = Math.min(rect.width - 230, (e.clientX - rect.left) + 12) + "px";
+  r.tip.style.top = ((e.clientY - rect.top) + 12) + "px";
+}
+
+// ------------------------------------------------------------------ race line (compare page)
+let raceGeom = null;
+function buildRace() {
+  const W = 980, H = 240, Lp = 54, B = 40, Tp = 14, Rp = 16;
+  const ep = runs[0].b.meta.episode_s;
+  const maxV = Math.max(0.05, ...runs.flatMap(r => r.b.frames.map(f => f.kpi.secured))) * 1.1;
+  const x = t => Lp + (W - Lp - Rp) * t / ep, y = v => Tp + (H - Tp - B) * (1 - v / maxV);
+  const cols = [css("--muted"), css("--hazard")];
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Survival secured over time for both runs">`;
+  for (let v = 0; v <= maxV + 1e-9; v += niceStep(maxV / 4)) s += `<line x1="${Lp}" x2="${W - Rp}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${Lp - 6}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(2)}</text>`;
+  for (let m = 0; m <= ep / 60; m += 30) s += `<text x="${x(m * 60)}" y="${H - B + 18}" text-anchor="middle">${m}</text>`;
+  s += `<text x="${(Lp + W) / 2}" y="${H - 6}" text-anchor="middle">minutes after launch</text>`;
+  s += `<text x="12" y="${Tp + 4}" transform="rotate(-90 12 ${H / 2})" text-anchor="middle" x2="0">survival per at-risk person</text>`;
+  runs.forEach((r, i) => {
+    const pts = r.b.frames.map(f => `${x(f.t).toFixed(1)},${y(f.kpi.secured).toFixed(1)}`).join(" ");
+    const lastF = r.b.frames[r.b.frames.length - 1];
+    s += `<polyline points="${pts}" fill="none" stroke="${cols[i % 2]}" stroke-width="${i ? 3 : 2}"/>`;
+    s += `<text x="${x(lastF.t) - 4}" y="${y(lastF.kpi.secured) - 6}" text-anchor="end" style="fill:${cols[i % 2]};font-weight:600">${r.b.meta.label}: ${lastF.kpi.secured.toFixed(2)}</text>`;
+  });
+  // markers: first arrival per town (callouts)
+  for (const co of PAGE.callouts.filter(c => c.kind === "town")) {
+    if (co.b !== null) s += `<line x1="${x(co.b)}" x2="${x(co.b)}" y1="${Tp}" y2="${H - B}" stroke="${cols[1]}" stroke-dasharray="2 3"/><text x="${x(co.b) + 3}" y="${Tp + 10}" style="font-size:11px">${co.town}</text>`;
+    if (co.a !== null) s += `<line x1="${x(co.a)}" x2="${x(co.a)}" y1="${Tp}" y2="${H - B}" stroke="${cols[0]}" stroke-dasharray="2 3"/>`;
+  }
+  s += `<line id="cursor" x1="0" x2="0" y1="${Tp}" y2="${H - B}" stroke="var(--ink)" stroke-width="1.5"/></svg>`;
+  document.getElementById("race").innerHTML = s;
+  raceGeom = {x};
+  document.getElementById("callouts").innerHTML = (PAGE.callouts || []).map(c => `<li class="${c.favours}">${c.text}</li>`).join("") || "<li>No clear differences on this seed.</li>";
+}
+function drawRaceCursor(t) { const cu = document.getElementById("cursor"); if (cu && raceGeom) { cu.setAttribute("x1", raceGeom.x(t)); cu.setAttribute("x2", raceGeom.x(t)); } }
+function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x))); const m = x / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
+
+// ------------------------------------------------------------------ playback and keyboard
+function setPlay() { document.getElementById("play").textContent = playing ? "Pause" : (tIdx >= T - 1 ? "Replay" : "Play"); }
+function loop(ts) {
+  const dt = Math.min(0.1, (ts - last) / 1000); last = ts;
+  if (playing) {
+    tIdx += dt * parseFloat(document.getElementById("speed").value);
+    if (tIdx >= T - 1) { tIdx = T - 1; playing = false; setPlay(); }
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+document.getElementById("play").onclick = () => { if (tIdx >= T - 1) tIdx = 0; playing = !playing; setPlay(); };
+document.getElementById("scrub").oninput = e => { tIdx = parseFloat(e.target.value); render(); };
+document.querySelectorAll('input[name="heat"], #truth, #fline').forEach(el => el.onchange = render);
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" && e.target.type === "range") return;
+  if (e.code === "Space") { e.preventDefault(); document.getElementById("play").click(); }
+  else if (e.key === "ArrowRight") { tIdx = Math.min(T - 1, Math.floor(tIdx) + 1); render(); }
+  else if (e.key === "ArrowLeft") { tIdx = Math.max(0, Math.ceil(tIdx) - 1); render(); }
+});
+boot().catch(err => { document.getElementById("subtitle").textContent = "Could not load the replay: " + err; console.error(err); });
+</script>
+</body>
+</html>
