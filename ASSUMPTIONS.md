@@ -16,7 +16,7 @@
 
 ## Choices made during the build (where the plan was ambiguous)
 
-- Team inputs (2026-11-08): mass 1.5 kg and radio range 8 km from the team; 15 m/s is the cruise and the battery-life reference airspeed (V_ref, was 13 m/s). Battery life (150 min), charge time (10 min) and camera range (140 m) are still the plan's placeholders.
+- Team inputs (2026-11-08): mass 1.5 kg and radio range 8 km from the team; 15 m/s is the cruise and the battery-life reference airspeed (V_ref, was 13 m/s). Battery life (150 min) and camera range (140 m) are team values; only the charge (swap) time (10 min) is still the plan's placeholder.
 - Team airframe: 1 m span with best glide at 15 m/s (team values). Derived, with the plan's cd0 0.018, Oswald 0.85 and CLmax 1.3: wing area 0.237 m^2 (aspect ratio 4.2, best L/D 12.5, stall 8.8 m/s); thrust 4.2 N (the plan's thrust/weight ~0.29, 3.1 m/s climb at 15 m/s); normal climbs at 15 m/s; payload + avionics 10 W (the plan's 25 W suits a 5 kg airframe). 150 min at 15 m/s gives a ~93 Wh battery. Circling sink at 35 deg bank is ~1.4 m/s, so soaring only pays in strong thermals.
 - Tests that assumed the 5 kg placeholder now compute their targets from the configured airframe; the thermal-climb test uses a core 2 m/s stronger than the configured circling sink.
 - Breach scenarios force the sampled levee height to at least 1 m, so there is always a levee to cut.

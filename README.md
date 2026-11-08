@@ -37,7 +37,7 @@ Team inputs can be set on the command line or in `[team]` in `configs/default.to
 --mass-kg 5 --battery-life-min 150 --charge-time-min 10 --signal-radius-km 3 --camera-range-m 140
 ```
 
-Team values: mass 1.5 kg, radio range 8 km, cruise (and battery-life reference) 15 m/s, airframe 1 m span with best glide at 15 m/s. The rest of the airframe is derived from those (`[glider]` in `configs/default.toml`, details in `ASSUMPTIONS.md`): 0.237 m² wing, glide ratio 12.5, stall 8.8 m/s, 4.2 N thrust, 10 W payload, about 93 Wh battery. Battery life (150 min), charge time and camera range are still the plan's placeholders. Every other number is a dataclass default in `floodsim/config.py` and can be overridden from TOML.
+Team values: mass 1.5 kg, radio range 8 km, cruise (and battery-life reference) 15 m/s, airframe 1 m span with best glide at 15 m/s. The rest of the airframe is derived from those (`[glider]` in `configs/default.toml`, details in `ASSUMPTIONS.md`): 0.237 m² wing, glide ratio 12.5, stall 8.8 m/s, 4.2 N thrust, 10 W payload, about 93 Wh battery. Battery life 150 min and camera range 140 m are team values; only the 10 min battery swap time is still a placeholder. Every other number is a dataclass default in `floodsim/config.py` and can be overridden from TOML.
 
 Worlds are cached in `cache/<spec_hash>.npz` (0.4-4 MB each, about 0.15 s to load). Building one uncached takes 1.5-3 s, mostly the flood solver; seeds that fail rejection checks take longer.
 

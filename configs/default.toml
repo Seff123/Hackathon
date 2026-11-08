@@ -3,11 +3,11 @@
 
 [team]
 mass_kg = 1.5                 # team value (2026-11-08)
-battery_life_min = 150.0      # placeholder: level flight at the 15 m/s cruise on a full battery
+battery_life_min = 150.0      # team value: level flight at the 15 m/s cruise on a full battery
 # battery_wh = 93.0           # set instead of battery_life_min if known
 charge_time_min = 10.0        # placeholder: battery swap at base
 signal_radius_km = 8.0        # team value (2026-11-08): radio range, drone-drone and drone-base
-camera_range_m = 140.0        # placeholder: 50% detection height for a person on land
+camera_range_m = 140.0        # team value: 50% detection height for a person on land
 
 [glider]
 # Team airframe: 1 m span, best glide (and cruise) 15 m/s. The rest is derived:
