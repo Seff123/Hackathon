@@ -1,0 +1,17 @@
+# FloodSim default configuration. Every value here overrides the dataclass default in floodsim/config.py.
+# Team inputs: set these before training. The placeholders only let the build run.
+[team]
+mass_kg = 5.0
+battery_life_min = 150.0
+charge_time_min = 10.0
+signal_radius_km = 3.0
+camera_range_m = 140.0
+# battery_wh = 180.0   # give this instead of battery_life_min if known
+
+[sim]
+swap = true
+
+[controller]
+search_height_frac = 0.6
+e_soar = 0.6
+w_enter = 0.8

@@ -1,0 +1,10 @@
+.venv/
+cache/
+out/
+results/
+site/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+seeds_*.json
