@@ -39,6 +39,7 @@ python -m floodsim demo3d --seed <demo> --controller survival --out site/       
 python -m floodsim pitch --seed <demo> --out site/pitch/                                   # backup clip + key frames
 python -m floodsim scenarios --seeds 1-20 --out site/                                       # presets: site/scenarios.html
 python -m floodsim scenarios --list                                                          # list the presets
+python -m floodsim scenarios --presets town_far+crowded --seeds 1-80 --out site/             # "+crowded": 50-60 people
 python -m floodsim export-replay --preset town_far --seed 12 --out site/                     # one preset flood
 ```
 
@@ -95,8 +96,22 @@ Numbers from `scripts/run_experiments.py --trials 10` (results in `results/`, ch
 | Slow-rising river | water reaches people after 80 min | +0.003 | [−0.017, +0.024] | 5 / 4 / 11 |
 | Two gliders, many at risk | 9 people at risk, 2 gliders | +0.018 | [−0.011, +0.047] | 6 / 4 / 10 |
 | Extreme 2076 flood | 14% of land and 51% of homes flooded, 15 people at risk | +0.014 | [−0.025, +0.053] | 9 / 10 / 1 |
+| Extreme 2076, crowded (50-60 people) | 38 people at risk | −0.021 | [−0.050, +0.008] | 8 / 12 / 0 |
+| Big town far, crowded (50-60 people), seeds 1-80 | 7 people at risk, town 1.5 km from the flood | **+0.079** | **[+0.041, +0.116]** | **21 / 0 / 35** |
 
-No preset shows a statistically clear difference with 20 floods. The two that lean most towards ours are the ones expected to: the big town far from the flood (3 wins, 0 losses) and a big town in the flood. The hills preset is level, as expected. The trapped-valley preset is mostly ties, against expectation: survival there is high (0.95) because water reaches people late in the sortie (median 93 min). In the extreme 2076 preset, at the top of the plan's 2076 climate range (×1.4 on storm rain and on river flow), survival of people at risk falls to about 0.62, against 0.87 in ordinary floods. Both planners lose about the same amount, and they almost never tie (19 of 20 floods differ), but the wins and losses cancel out. The far-town demo (seed 12, +0.49) is the median of only 3 non-tied floods, so it is a large gap, not a typical one.
+No preset shows a statistically clear difference with 20 floods. The two that lean most towards ours are the ones expected to: the big town far from the flood (3 wins, 0 losses) and a big town in the flood. The hills preset is level, as expected. The trapped-valley preset is mostly ties, against expectation: survival there is high (0.95) because water reaches people late in the sortie (median 93 min). In the extreme 2076 preset, at the top of the plan's 2076 climate range (×1.4 on storm rain and on river flow), survival of people at risk falls to about 0.62, against 0.87 in ordinary floods. Both planners lose about the same amount, and they almost never tie (19 of 20 floods differ), but the wins and losses cancel out. 
+
+**Why the extreme flood shows no gain, and when more people help.** It is not the forecast. In extreme floods the 30-minute forecast misses 4% of deep-water cells, against 5% in ordinary floods, even though the water rises about three times as fast. This is because the forecast is built on the true river stage plus an error that does not grow with flood size. The reason is in what the two planners know. Measured from the planner's own maps, the percentile rank of the blocks where unfound at-risk people are:
+- Ordinary floods: our "lives at stake" map ranks them higher (0.82) than Bayesian search's "where people probably are" map (0.75).
+- Extreme floods: both maps rank them at about 0.93. When around 70% of people are at risk, a map of people is already a map of people at risk, so our planner's main extra information, who is in danger, adds nothing.
+
+This predicted that more people would help only where most people are safe. That was stated before running and it held:
+- 50-60 people in the extreme flood: still level.
+- 50-60 people with the big town far from the flood: a clear gain, +0.079 over 56 floods, with 21 wins and no losses. Our planner finds fewer people overall (18% vs 35%) but more of the ones at risk (survival 0.54 vs 0.46).
+
+This is one of about ten scenario comparisons, but the interval is well clear of zero, and 36 of the 56 floods (seeds 21-80) were never used before the confirmation run.
+
+The far-town demo (seed 12, +0.49) is the median of only 3 non-tied floods, so it is a large gap, not a typical one.
 
 **Known limitations.** The value-alignment test in `tests/planner` is marked xfail: the planner's forecast underestimates depth in backwater and breach areas, so its lives-at-stake map misses some of the places where people are in danger (see ASSUMPTIONS.md). This is the most likely reason the survival weighting gains nothing over plain Bayesian search.
 

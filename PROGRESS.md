@@ -62,3 +62,6 @@ Pipeline (`scripts/run_experiments.py --trials 10`, 104 min): tuned bayes / heur
 
 ## Extreme 2076 preset
 Added `extreme_2076` (climate factor 1.4 on rain and river flow, combined flooding, storm weather). Over 20 floods: 14% of land flooded and 15 people at risk per flood. Survival of people at risk is 0.63 (ours) vs 0.61 (Bayesian), paired +0.014 [−0.025, +0.053], 9 wins / 10 losses / 1 tie. `scenarios --presets <subset>` now merges with the previous scenario run, so the selector keeps every preset.
+
+## Extreme-flood diagnosis and "+crowded" modifier
+Forecast miss rate on deep water: 4% in extreme floods vs 5% in ordinary ones, so the forecast is not the cause. The percentile rank of unfound at-risk people's blocks is 0.82 (stake map) vs 0.75 (people map) in ordinary floods and 0.92 vs 0.93 in extreme floods: the maps coincide when most people are at risk. Prediction: more people help only where most are safe. Results: extreme+crowded −0.021 [−0.050, +0.008]; town_far+crowded on seeds 1-80 +0.079 [+0.041, +0.116], 21 wins / 0 losses / 35 ties. Scenario runs now accumulate in results/latest_scenarios.txt, fixing the bug where the selector kept only the last two runs.

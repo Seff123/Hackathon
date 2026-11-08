@@ -45,3 +45,12 @@ def test_hills_escape_shorter_than_valley():
                 vals.append(f["escape_m"])
         esc[key] = np.median(vals)
     assert esc["escape_hills"] < esc["trapped_valley"]
+
+
+def test_crowded_modifier():
+    from floodsim.presets import get_preset
+    p = get_preset("town_far+crowded")
+    assert p.bounds["n_targets"].lo == 50 and p.knobs["town_river_dist_m"] == PRESETS["town_far"].knobs["town_river_dist_m"]
+    a = sample_spec(1, preset="town_far+crowded")
+    assert 50 <= a.n_targets <= 60 and a.preset["name"] == "town_far+crowded"
+    assert a.spec_hash != sample_spec(1, preset="town_far").spec_hash

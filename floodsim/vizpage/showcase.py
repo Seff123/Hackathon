@@ -172,7 +172,7 @@ def export_pages(results_dirs, site="site/", cache="cache/", config=None, tuned=
     """One compare page per preset (its demo flood) and site/scenarios.html to switch between them.
     `results_dirs` may be a list of scenario runs; a preset in a later run replaces the same preset in an earlier
     one, so a run of a few presets can be added to a full run."""
-    from ..presets import PRESETS
+    from ..presets import PRESETS, get_preset
     from .export import build_bundle, callouts, write_page
     from .record import record_episode
     if isinstance(results_dirs, (str, Path)):
@@ -185,13 +185,13 @@ def export_pages(results_dirs, site="site/", cache="cache/", config=None, tuned=
     site = Path(site)
     site.mkdir(parents=True, exist_ok=True)
     cards = []
-    order = list(PRESETS) + [k for k in merged if k not in PRESETS]
+    order = [v for k in PRESETS for v in [k] + sorted(x for x in merged if x.startswith(k + "+"))]
     for key in [k for k in order if k in merged]:
         ps = merged[key]
         demo = ps.get("demo")
         if not demo:
             continue
-        pre = PRESETS[key]
+        pre = get_preset(key)
         runs = [record_episode(demo["seed"], c, None, cache, None, config, (tuned or {}).get(c), preset=key)
                 for c in (ref, ours)]
         bundles = [build_bundle(r, w) for r, w in runs]
@@ -209,11 +209,11 @@ def export_pages(results_dirs, site="site/", cache="cache/", config=None, tuned=
 
 
 def write_selector(cards: list, path, ref="bayes", ours="survival") -> Path:
-    from ..presets import PRESETS
+    from ..presets import get_preset
     esc = lambda s: str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     html_cards = []
     for i, c in enumerate(cards):
-        pre = PRESETS[c["key"]]
+        pre = get_preset(c["key"])
         pr = c["paired"]
         if pr.get("n"):
             sig = pr["ci95"][0] > 0 or pr["ci95"][1] < 0
@@ -228,7 +228,7 @@ def write_selector(cards: list, path, ref="bayes", ours="survival") -> Path:
         mtxt = (f"Mean survival of people at risk: ours {m[ours]:.2f}, Bayesian {m[ref]:.2f} · "
                 f"{c['n_at_risk']:.1f} people at risk per flood")
         fm = c["features_median"]
-        ftxt = " · ".join(f"{_fmt(fm.get(k), u)} {lab}" for k, lab, u in FEATURE_TEXT.get(c["key"], []))
+        ftxt = " · ".join(f"{_fmt(fm.get(k), u)} {lab}" for k, lab, u in FEATURE_TEXT.get(c["key"].split("+")[0], []))
         this = f"This flood (seed {c['seed']}): ours {c['this'][ours]:.2f}, Bayesian {c['this'][ref]:.2f}"
         html_cards.append(f"""<button class="card{' on' if i == 0 else ''}" data-src="{c['page']}">
 <div class="t">{esc(pre.title)}<span class="v {cls}">{verdict}</span></div>

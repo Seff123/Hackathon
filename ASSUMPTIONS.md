@@ -108,3 +108,9 @@ The knobs live on `spec.preset`, so they are part of the spec hash. `to_dict` dr
 
 ## Extreme 2076 preset
 The environment plan sets the climate factor at "rainfall intensity × 1.0-1.4 for 2076" and applies it to rain only. The `extreme_2076` preset fixes the factor at the top of that range (1.4). It applies the same uplift to river flow: peak inflow 1400-2100 m³/s, which is the top of the normal 1000-1500 range × 1.4 and beyond the ordinary bounds. These are framing numbers taken from the plan, not a climate projection for any real river. The preset also uses combined river and surface flooding, low levees (0.5-1.5 m), a peak during the sortie, full cloud (so no thermals) and 5-8 m/s wind; the normal wind-limit check still applies.
+
+## "+crowded" modifier
+`<preset>+crowded` uses 50-60 people per flood, beyond the plan's 3-25 range (the plan lists a mass-casualty scenario as the alternative), and scales `min_targets_in_flood` by 2.5. Seeds that cannot satisfy a preset within 50 attempts are skipped: 24 of 80 for town_far+crowded.
+
+## Correction: forecast quality in extreme floods
+An earlier explanation, that forecast depth errors grow in big floods, was wrong. The stage error does not depend on flood size, and the measured 30-minute miss rate on deep water is 4% in extreme floods vs 5% in ordinary ones. The measured cause of the null result is that the people map and the at-risk map coincide when most people are at risk (see the README).

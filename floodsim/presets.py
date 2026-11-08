@@ -110,13 +110,35 @@ PRESETS: dict[str, Preset] = {p.key: p for p in [
 ]}
 
 
+# modifiers stack on any preset with "+": e.g. "extreme_2076+crowded"
+MODIFIERS: dict[str, dict] = {
+    "crowded": dict(title="crowded: 50-60 people", bounds=dict(n_targets=Bounds(50, 60, "int")),
+                    knob_scale=dict(min_targets_in_flood=2.5)),
+}
+
+
+def get_preset(key: str) -> Preset:
+    """A preset, with any "+modifier" applied."""
+    base, *mods = key.split("+")
+    p = PRESETS[base]
+    for m in mods:
+        mod = MODIFIERS[m]
+        knobs = dict(p.knobs)
+        for kk, f in mod.get("knob_scale", {}).items():
+            if kk in knobs:
+                knobs[kk] = int(round(knobs[kk] * f))
+        p = replace(p, key=key, title=f"{p.title} ({mod['title']})", bounds={**p.bounds, **mod["bounds"]},
+                    knobs=knobs)
+    return p
+
+
 def preset_bounds(key: str, base: ScenarioBounds) -> ScenarioBounds:
-    return replace(base, **PRESETS[key].bounds)
+    return replace(base, **get_preset(key).bounds)
 
 
 def preset_tag(key: str) -> dict:
     """What goes on the spec: the preset name and its knobs (lists, so the spec stays JSON-like)."""
-    k = {a: (list(v) if isinstance(v, tuple) else v) for a, v in PRESETS[key].knobs.items()}
+    k = {a: (list(v) if isinstance(v, tuple) else v) for a, v in get_preset(key).knobs.items()}
     return {"name": key, **k}
 
 

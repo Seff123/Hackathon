@@ -171,9 +171,10 @@ def cmd_scenarios(args):
     else:
         keys = list(PRESETS) if args.presets == "all" else args.presets.split(",")
         latest = Path(args.results_root) / "latest_scenarios.txt"
-        # a run of some presets is shown together with the other presets of the previous run
-        prev = [latest.read_text().strip()] if args.presets != "all" and latest.exists() else []
+        # a run of some presets is shown together with every earlier run (one directory per line, later ones win)
+        prev = latest.read_text().split() if args.presets != "all" and latest.exists() else []
         dirs = prev + [str(run_scenarios(keys, parse_seeds(args.seeds), tuple(args.controllers.split(",")),
                                          args.results_root, args.workers, args.cache, args.config, tuned))]
+        latest.write_text("\n".join(dirs) + "\n")
     export_pages(dirs, args.out, args.cache, args.config, tuned)
     return 0
