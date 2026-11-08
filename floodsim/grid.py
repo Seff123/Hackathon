@@ -30,19 +30,29 @@ def cell_centres(n: int, cell: float):
 
 
 def bilinear(grid: np.ndarray, x, y, cell: float):
-    """Bilinear sample of a cell-centred grid at world (x, y); clamps at edges."""
+    """Bilinear sample of a cell-centred grid at world (x, y); clamps at edges.
+
+    grid may have leading dimensions (..., ny, nx); the result is (..., *x.shape).
+    """
     ny, nx = grid.shape[-2:]
-    fx = np.clip(np.asarray(x, float) / cell - 0.5, 0.0, nx - 1.000001)
-    fy = np.clip(np.asarray(y, float) / cell - 0.5, 0.0, ny - 1.000001)
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    inv = 1.0 / cell
+    fx = np.minimum(np.maximum(x * inv - 0.5, 0.0), nx - 1.000001)
+    fy = np.minimum(np.maximum(y * inv - 0.5, 0.0), ny - 1.000001)
     ix = fx.astype(np.int64)
     iy = fy.astype(np.int64)
     tx = fx - ix
     ty = fy - iy
-    g00 = grid[..., iy, ix]
-    g01 = grid[..., iy, ix + 1]
-    g10 = grid[..., iy + 1, ix]
-    g11 = grid[..., iy + 1, ix + 1]
-    return (g00 * (1 - tx) + g01 * tx) * (1 - ty) + (g10 * (1 - tx) + g11 * tx) * ty
+    i00 = iy * nx + ix
+    g = grid.reshape(grid.shape[:-2] + (ny * nx,))
+    g00 = g[..., i00]
+    g01 = g[..., i00 + 1]
+    g10 = g[..., i00 + nx]
+    g11 = g[..., i00 + nx + 1]
+    a = g00 + (g01 - g00) * tx
+    b = g10 + (g11 - g10) * tx
+    return a + (b - a) * ty
 
 
 def nearest(grid: np.ndarray, x, y, cell: float):

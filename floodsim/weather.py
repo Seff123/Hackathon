@@ -51,10 +51,11 @@ class Weather:
         relief = ndimage.maximum_filter(self.z, win) - ndimage.minimum_filter(self.z, win)
         self.h_ridge = np.maximum(wp.ridge_h_factor * relief, wp.ridge_h_min_m).astype(np.float32)
         self.ex, self.ey = math.cos(self.theta), math.sin(self.theta)
+        self._stack = np.stack([self.z, self.gx, self.gy, self.h_ridge]).astype(np.float64)
 
     # ---------------------------------------------------------------- profile
     def speed(self, z_agl):
-        z = np.clip(np.asarray(z_agl, float), 2.0, self.wp.profile_top_m)
+        z = np.minimum(np.maximum(np.asarray(z_agl, float), 2.0), self.wp.profile_top_m)
         return self.u10 * np.log(z / self.wp.z0_m) / self._ln10
 
     def mean_wind(self, z_agl):
@@ -85,11 +86,14 @@ class Weather:
         """(u, v, w) at world positions (arrays), z in metres above datum."""
         x = np.asarray(x, float)
         y = np.asarray(y, float)
-        zg = bilinear(self.z, x, y, self.cell)
+        zg, gx, gy, hr = bilinear(self._stack, x, y, self.cell)
         z_agl = np.asarray(z, float) - zg
-        u, v = self.mean_wind(z_agl)
-        w = self.ridge(x, y, z_agl) + self.thermal(x, y, z_agl).reshape(np.shape(x))
-        return u, v, w
+        sp = self.speed(z_agl)
+        wr = self.k_ridge * sp * (self.ex * gx + self.ey * gy) * np.exp(-np.maximum(z_agl, 0.0) / hr)
+        w = np.maximum(wr, self.wp.ridge_sink_clip)
+        if len(self.thermals) and self.w_star > 0:
+            w = w + self.thermal(x, y, z_agl).reshape(np.shape(x))
+        return sp * self.ex, sp * self.ey, w
 
     def wind(self, x, y, z, t=0.0):
         u, v, w = self.wind_at(np.array([x]), np.array([y]), np.array([z]))

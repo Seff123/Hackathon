@@ -519,6 +519,9 @@ class AutopilotParams:
     sep_dz_m: float = 50.0
     sep_turn_deg: float = 30.0
     sep_hold_s: float = 15.0
+    sep_lookahead_s: float = 45.0
+    sep_cpa_m: float = 250.0
+    sep_detect_m: float = 1500.0
     breach_h_m: float = 100.0
     breach_v_m: float = 25.0
     collision_m: float = 10.0
@@ -531,6 +534,10 @@ class AutopilotParams:
     transit_layer_cycle: int = 5
     transit_band_half_m: float = 25.0
     forced_landing_agl_m: float = 30.0
+    crosswind_margin: float = 5.0  # transit airspeed >= |crosswind| + this
+    climb_headwind_margin: float = 8.0  # band climbs at max(climb_speed, headwind + this)
+    rtb_descent_rate: float = 1.0  # m/s, for the payload energy of the landing orbit
+    rtb_hard_floor: float = 1.1  # RTB whenever E <= this x reserve, glide or not
 
 
 @dataclass

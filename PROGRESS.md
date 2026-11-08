@@ -14,3 +14,6 @@ FloodForecast precomputed as arrays (noisy stage forecasts at drainage cells for
 
 ## Phase 4: weather
 Constant mean wind with log profile (z0 0.1 m, constant above 600 m), ridge lift from 150 m-smoothed terrain with H_r from 2 km relief, fixed thermal hotspots (Allen-style profile) weighted by land cover; cached with the world. Wind-slice plot shows lift on windward valley walls and lee sink. 31 tests pass.
+
+## Phase 5: glider, autopilot, safety
+Quasi-steady point-mass glider with sink-rate table, vectorised over drones; battery from battery_life_min at 13 m/s. Autopilot modes (launch, transit with altitude bands, crosswind lawnmower search, thermal circling, verify orbit, RTB with descending landing orbit, loiter), wind-corrected heading, crosswind-aware transit speed, RTB energy rule, safety layer (terrain look-ahead, geofence, stall, ceiling), predictive swarm separation, base zone. FlightCore wraps physics + autopilot + terminations. 52 tests pass (RTB 50/50 and 49/50 in strong headwind; 0 breaches in 50 busy 8-drone runs; 0 crashes in 50 ridge runs). ~0.7 ms per 8-drone flight step.
