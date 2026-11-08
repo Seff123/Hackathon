@@ -49,3 +49,7 @@
 - The autopilot's thermal-top check uses the scenario's boundary-layer depth zi (treated as known from a sounding).
 - Separation conflicts are detected by the plan's rule (inside 300 m and 40 m) and also predictively: closest point of approach within 45 s closer than 250 m horizontally and 40 m vertically (pairs within 1.5 km). The swarm test flies 8 drones on random crossing routes.
 - Base zone: within 500 m of base and below 150 m above it, plus any drone within 500 m that is in its landing orbit or launching (otherwise drones arriving high share the landing orbit with separation active and can livelock).
+- People swept off the map by drift are "lost": they cannot be found and count with survival 0.
+- Camera range for a person on a roof is measured to the roof top (terrain + obstacle height); the footprint uses the camera's height above the ground at the nadir point. Cover modifier comes from the person's cell land cover.
+- Verification: when the 60 s orbit ends, the first unfound person currently in the cell is confirmed with p = 0.95; an empty cell is rejected with p = 0.97 (otherwise a false confirmation is logged).
+- Radio: a message sent at t is delivered at the next 1 s radio tick to every node (drones in the air or on the pad, plus the base) within signal_radius of the sender at that moment; out-of-range targets never receive it (no store-and-forward in the environment).
