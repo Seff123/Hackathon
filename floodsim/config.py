@@ -309,6 +309,7 @@ class AutopilotParams:
     verify_agl: float = 70.0
     verify_radius: float = 80.0
     verify_s: float = 60.0
+    verify_stack_m: float = 500.0
     rtb_orbit_r: float = 70.0
     rtb_approach_agl: float = 80.0
     land_radius: float = 100.0
@@ -335,12 +336,18 @@ class AutopilotParams:
     base_zone_h: float = 150.0
     sep_h: float = 300.0
     sep_v: float = 40.0
+    sep_exit_h: float = 400.0         # a conflict lasts until the pair is this far apart horizontally
+    sep_cpa_s: float = 20.0           # look-ahead for closest point of approach
     sep_dz: float = 50.0
     sep_turn_deg: float = 30.0
     breach_h: float = 100.0
     breach_v: float = 25.0
     collision_m: float = 10.0
     forced_land_agl: float = 30.0
+    launch_stagger_s: float = 20.0     # departure spacing between drones launched together
+    launch_hold_r: float = 150.0
+    launch_hold_agl: float = 80.0
+    sep_descend_min_agl: float = 110.0
 
 
 @dataclass

@@ -86,6 +86,14 @@ class FloodForecast:
         return np.where(self.depression_depth > 0.05, pond, 0.0).astype(np.float32)
 
     # ------------------------------------------------------------------ API
+    def fluvial_terms(self, t_issue: float, lead_s: float):
+        """(mu, sigma, f) of the fluvial HAND forecast issued at t_issue for lead_s, without observed-extent
+        fusion: P = Phi((mu + b f - 0.1) / sigma). Used for learning the stage bias."""
+        i, j = self._ij(t_issue, lead_s)
+        mu, sig = self._fluvial_mu_sigma(i, j, 0.0)
+        f = np.where(self.drain_k >= 0, self.drain_scale[np.maximum(self.drain_k, 0)], 0.0).astype(np.float32)
+        return mu, sig, f
+
     def observed_extent(self, t_now: float) -> np.ndarray:
         k = int(np.clip(np.floor(t_now / self.extent_dt + 1e-9), 0, self.obs_extent.shape[0] - 1))
         return self.obs_extent[k]
