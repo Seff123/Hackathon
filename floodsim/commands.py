@@ -123,6 +123,8 @@ def cmd_demo(args, cfg: Config) -> int:
         viz.plot_wind_slice(world, 100.0, 0.0, out / f"wind_{tag}.png"),
         viz.plot3d_html(res, world, out / f"episode3d_{tag}.html"),
         viz.animate_episode(res, world, out / f"episode_{tag}.gif"),
+        viz.animate_paths(res, world, out / f"paths_{tag}.gif"),
+        viz.animate_battery_altitude(res, world, out / f"battery_altitude_{tag}.gif"),
     ]
     for p in paths:
         print(f"wrote {p}")

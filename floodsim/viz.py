@@ -87,8 +87,16 @@ def _save_gif(frames, path, fps=8):
     except ImportError:  # pragma: no cover
         Image = None
     if Image is not None:
-        # one shared 64-colour palette keeps the clip small and flicker-free
-        pal = Image.fromarray(frames[len(frames) // 2]).quantize(colors=64, method=Image.Quantize.MEDIANCUT)
+        # one shared palette keeps the clip small and flicker-free; build it from several
+        # frames plus a swatch of the drone colours so tracks keep their exact hues
+        pick = [frames[int(k)] for k in np.linspace(0, len(frames) - 1, 4)]
+        sw = np.zeros((16, pick[0].shape[1], 3), np.uint8)
+        cols = [tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) for c in DRONE_COLORS] + [(255, 255, 255), (0, 0, 0)]
+        w = max(sw.shape[1] // len(cols), 1)
+        for k, c in enumerate(cols):
+            sw[:, k * w:(k + 1) * w] = c
+        sample = np.concatenate(pick + [sw] * 6, axis=0)
+        pal = Image.fromarray(sample).quantize(colors=96, method=Image.Quantize.MEDIANCUT)
         ims = [Image.fromarray(f).quantize(palette=pal, dither=Image.Dither.NONE) for f in frames]
         ims[0].save(path, save_all=True, append_images=ims[1:], duration=int(1000 / fps), loop=0,
                     optimize=True)
@@ -197,5 +205,6 @@ def plot_wind_slice(world, z_agl=100.0, t=0.0, path=None, ax=None):
 
 
 from ._viz_episode import (  # noqa: E402,F401  (episode visuals)
-    animate_episode, episode_report, plot3d_html, plot3d_png, plot_coverage,
+    animate_battery_altitude, animate_episode, animate_paths, episode_report, plot3d_html, plot3d_png,
+    plot_coverage,
 )

@@ -252,12 +252,132 @@ def plot3d_html(result, world, path):
     zr = float(np.nanmax(tr["z"])) - float(z.min())
     fig.update_layout(
         title=f"FloodSim seed {world.spec.seed}: {world.spec.flood_type}, {result.n_drones} drones",
+        font=dict(size=10),
+        title_font=dict(size=13),
         scene=dict(aspectmode="manual", aspectratio=dict(x=1, y=1, z=max(zr / terr.domain_m * 3, 0.15)),
-                   xaxis_title="east (m)", yaxis_title="north (m)", zaxis_title="z (m)"),
-        legend=dict(itemsizing="constant"), margin=dict(l=0, r=0, t=40, b=0))
+                   xaxis=dict(title=dict(text="east (m)", font=dict(size=10)), tickfont=dict(size=8)),
+                   yaxis=dict(title=dict(text="north (m)", font=dict(size=10)), tickfont=dict(size=8)),
+                   zaxis=dict(title=dict(text="z (m)", font=dict(size=10)), tickfont=dict(size=8))),
+        legend=dict(itemsizing="constant", font=dict(size=9)), margin=dict(l=0, r=0, t=34, b=0))
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(str(path), include_plotlyjs=True)
     return path
+
+
+_SMALL = {"font.size": 7, "axes.titlesize": 8, "axes.labelsize": 7, "xtick.labelsize": 6,
+          "ytick.labelsize": 6, "legend.fontsize": 6, "figure.titlesize": 9}
+
+
+def animate_paths(result, world, path, every_s=30.0, fps=12, dpi=90, tail_s=300.0):
+    """Drone paths over the map: full track faint, last 5 min bright, flood underneath,
+    found people as white stars."""
+    terr, fl, tr = world.terrain, world.flood, result.trajectory
+    snaps = result.snapshots
+    nd, n = result.n_drones, terr.n
+    ext = _extent(n, terr.cell_size)
+    times = np.arange(0.0, tr["t"][-1] + 1e-6, every_s)
+    finds = sorted(result.finds, key=lambda f: f[1])
+    with plt.rc_context(_SMALL):
+        fig, ax = plt.subplots(figsize=(5.2, 5.4), dpi=dpi)
+        ax.imshow(0.45 + 0.55 * terrain_rgb(terr), origin="lower", extent=ext)  # lightened map
+        flood_im = ax.imshow(np.zeros((n, n, 4)), origin="lower", extent=ext)
+        bx, by = terr.base_xy
+        ax.plot(bx / 1000, by / 1000, marker="^", ms=8, mec="k", mfc="gold", zorder=15)
+        full, tail, head = [], [], []
+        for i in range(nd):
+            c = DRONE_COLORS[i % len(DRONE_COLORS)]
+            full.append(ax.plot([], [], "-", color=c, lw=0.8, alpha=0.7)[0])
+            tail.append(ax.plot([], [], "-", color=c, lw=2.2)[0])
+            head.append(ax.plot([], [], "o", color=c, mec="k", mew=0.6, ms=5, zorder=14,
+                                label=f"drone {i}")[0])
+        found_sc = ax.scatter(np.zeros(0), np.zeros(0), marker="*", s=70, c="white", edgecolors="k",
+                              lw=0.6, zorder=16, label="person found")
+        ax.legend(loc="upper right", framealpha=0.85, ncol=2, handlelength=1.0)
+        ax.set_xlim(ext[0], ext[1])
+        ax.set_ylim(ext[2], ext[3])
+        ax.set_xlabel("east (km)")
+        ax.set_ylabel("north (km)")
+        title = ax.set_title("Drone paths, placeholder title for layout")
+        fig.tight_layout()
+        frames = []
+        for t in times:
+            flood_im.set_data(_flood_rgba(fl.depth_grid(min(t, fl.t_end))))
+            keep = tr["t"] <= t
+            recent = keep & (tr["t"] >= t - tail_s)
+            for i in range(nd):
+                full[i].set_data(tr["x"][keep, i] / 1000, tr["y"][keep, i] / 1000)
+                tail[i].set_data(tr["x"][recent, i] / 1000, tr["y"][recent, i] / 1000)
+                if keep.any():
+                    head[i].set_data(tr["x"][keep, i][-1:] / 1000, tr["y"][keep, i][-1:] / 1000)
+            done = [f for f in finds if f[1] <= t]
+            if done and len(snaps.get("t", [])):
+                pts = []
+                for p, tf, _, _ in done:
+                    k = max(int(np.searchsorted(snaps["t"], tf, side="right")) - 1, 0)
+                    pts.append((snaps["px"][k][p] / 1000, snaps["py"][k][p] / 1000))
+                found_sc.set_offsets(np.asarray(pts))
+            hh, mm = divmod(int((world.spec.start_hour * 3600 + t) // 60), 60)
+            title.set_text(f"Drone paths, seed {world.spec.seed} ({world.spec.flood_type}), "
+                           f"t+{t / 60:.0f} min ({hh % 24:02d}:{mm:02d}), found {len(done)}")
+            fig.canvas.draw()
+            frames.append(np.asarray(fig.canvas.buffer_rgba())[..., :3].copy())
+        plt.close(fig)
+    return _save_gif(frames, path, fps)
+
+
+def animate_battery_altitude(result, world, path, every_s=30.0, fps=12, dpi=90):
+    """Height above ground (top) and battery charge (bottom) for every drone, drawn over time."""
+    from .autopilot import MODE_NAMES
+
+    terr, tr = world.terrain, result.trajectory
+    nd = result.n_drones
+    cap = world.cfg.glider.battery_capacity_wh
+    reserve = world.cfg.glider.reserve_frac * 100
+    t_min = tr["t"] / 60
+    agl = tr["z"] - terr.ground_at(tr["x"], tr["y"])
+    on_ground = np.isin(tr["mode"], [MODE_NAMES.index("GROUND"), MODE_NAMES.index("DOWN")])
+    agl = np.where(on_ground, np.nan, agl)
+    batt = tr["E"] / cap * 100
+    times = np.arange(0.0, tr["t"][-1] + 1e-6, every_s)
+    with plt.rc_context(_SMALL):
+        fig, (a1, a2) = plt.subplots(2, 1, figsize=(6.0, 4.6), dpi=dpi, sharex=True)
+        alt_l, alt_p, bat_l, bat_p = [], [], [], []
+        for i in range(nd):
+            c = DRONE_COLORS[i % len(DRONE_COLORS)]
+            alt_l.append(a1.plot([], [], "-", color=c, lw=0.9, label=f"drone {i}")[0])
+            alt_p.append(a1.plot([], [], "o", color=c, mec="k", mew=0.5, ms=4)[0])
+            bat_l.append(a2.plot([], [], "-", color=c, lw=0.9)[0])
+            bat_p.append(a2.plot([], [], "o", color=c, mec="k", mew=0.5, ms=4)[0])
+        a1.set_xlim(0, t_min[-1])
+        a1.set_ylim(0, max(float(np.nanmax(agl)) * 1.05, 100))
+        a1.set_ylabel("height above ground (m)")
+        a1.axhline(world.cfg.team.ceiling_agl_m, color="0.5", lw=0.6, ls=":")
+        a1.text(1, world.cfg.team.ceiling_agl_m, " ceiling", va="bottom", color="0.4")
+        a1.legend(loc="upper right", ncol=min(nd, 4), framealpha=0.85, handlelength=1.2)
+        a2.set_ylim(0, 102)
+        a2.set_ylabel("battery (%)")
+        a2.set_xlabel("minutes since episode start")
+        a2.axhline(reserve, color="crimson", lw=0.6, ls="--")
+        a2.text(1, reserve, f" {reserve:.0f}% landing reserve", va="bottom", color="crimson")
+        for a in (a1, a2):
+            a.grid(alpha=0.25, lw=0.4)
+        title = a1.set_title("Altitude and battery, placeholder title for layout")
+        fig.tight_layout()
+        frames = []
+        for t in times:
+            keep = tr["t"] <= t
+            for i in range(nd):
+                alt_l[i].set_data(t_min[keep], agl[keep, i])
+                bat_l[i].set_data(t_min[keep], batt[keep, i])
+                if keep.any():
+                    k = int(np.nonzero(keep)[0][-1])
+                    alt_p[i].set_data(t_min[k:k + 1], agl[k:k + 1, i])
+                    bat_p[i].set_data(t_min[k:k + 1], batt[k:k + 1, i])
+            title.set_text(f"Altitude and battery, {nd} drones, t+{t / 60:.0f} min")
+            fig.canvas.draw()
+            frames.append(np.asarray(fig.canvas.buffer_rgba())[..., :3].copy())
+        plt.close(fig)
+    return _save_gif(frames, path, fps)
 
 
 def plot3d_png(result, world, path):
