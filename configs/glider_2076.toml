@@ -6,25 +6,31 @@
 mass_kg = 1.5
 # Battery: same battery mass, 3x the energy. Lithium-ion cells gained ~3.4x in energy density from 1991 to today
 # (~4%/yr); top cells went from ~160 Wh/kg (2010) to ~300 Wh/kg (2026). 3x over 50 years assumes the rate halves
-# (~2.2%/yr). Today's 149 Wh (150 min at 13 m/s with the default airframe) -> 450 Wh.
-battery_wh = 450.0
+# (~2.2%/yr). Today's 93 Wh (150 min at 15 m/s with the team airframe) -> 280 Wh.
+battery_wh = 280.0
 battery_life_min = 450.0      # only used for validation when battery_wh is set
 # Swapping and fast charging: 10 -> 5 min turnaround.
 charge_time_min = 5.0
 # Comms: satellite direct-to-device and mesh links cover the whole 10 km domain (today's placeholder 3 km).
-signal_radius_km = 15.0
+signal_radius_km = 15.0      # team radio is 8 km today
 # Thermal camera: uncooled pixel pitch went 50 -> 25 -> 17 -> 12 um (1990s-2020s) and formats from 320x240 to
 # 640x512. The plan's 140 m already assumes 2x today's linear resolution; LWIR diffraction stops the pitch shrinking
 # much further, so 2076 gains come from larger arrays: 2x more linear resolution again -> 280 m detection range.
 camera_range_m = 280.0
 
 [airframe]
-# Laminar-flow, morphing wings and better small propellers. Profile drag -17%, span efficiency 0.85 -> 0.90,
-# propeller efficiency 0.65 -> 0.80 (large propellers reach 0.85+ today), avionics and camera power 25 -> 15 W.
+# Team airframe (1 m span, 15 m/s cruise) with laminar-flow, morphing wings and better small propellers.
+# Profile drag -17%, span efficiency 0.85 -> 0.90, propeller efficiency 0.65 -> 0.80 (large propellers reach
+# 0.85+ today), avionics and camera power 10 -> 6 W.
+span = 1.0
+wing_area = 0.237
+thrust_max = 4.2
+v_ref = 15.0
+climb_speed = 15.0
 cd0 = 0.015
 oswald = 0.90
 prop_eff = 0.80
-payload_w = 15.0
+payload_w = 6.0
 
 [sensor]
 # Onboard recognition: 4x fewer false alarms per cell, more reliable confirmation orbits.

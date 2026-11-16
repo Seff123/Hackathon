@@ -309,7 +309,8 @@ class AutopilotParams:
     verify_agl: float = 70.0
     verify_radius: float = 80.0
     verify_s: float = 60.0
-    verify_stack_m: float = 500.0
+    verify_stack_m: float = 500.0          # verifiers orbiting within this distance are stacked
+    verify_stack_dz: float = 40.0         # height step between stacked verify orbits (> breach_v)
     rtb_orbit_r: float = 70.0
     rtb_approach_agl: float = 80.0
     land_radius: float = 100.0
@@ -553,6 +554,11 @@ def _update_dc(obj, d: dict):
 @dataclass
 class AirframeParams:
     """Airframe and power-train settings applied on top of the team inputs (defaults = GliderParams defaults)."""
+    span: float = 3.67
+    wing_area: float = 0.90
+    thrust_max: float = 14.0
+    v_ref: float = 13.0          # speed at which battery_life_min is quoted
+    climb_speed: float = 12.0
     cd0: float = 0.018
     oswald: float = 0.85
     prop_eff: float = 0.65

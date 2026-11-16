@@ -68,3 +68,6 @@ Forecast miss rate on deep water: 4% in extreme floods vs 5% in ordinary ones, s
 
 ## 2076 glider
 `configs/glider_2076.toml`, an `[airframe]` config section, the false-alarm rate from config, labels and filenames for pitch clips, and `scripts/run_glider_2076.py`. On town_far+crowded (56 floods), our planner goes 0.540 → 0.757 with the 2076 glider (+0.216 [+0.173, +0.259]); Bayesian search goes 0.461 → 0.469. GIFs in site/glider2076/ (seed 71).
+
+## Merge with main
+main merged in with floodsim-build's environment kept and the team airframe (1 m span, 15 m/s, 93 Wh, 8 km radio) applied through `[airframe]` and `[team]` in configs/default.toml. The 2076 config was rebased onto the team airframe. Earlier results predate this and need rerunning.

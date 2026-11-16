@@ -128,3 +128,23 @@ The camera, recognition and airframe numbers are judgement calls, not fitted tre
 
 ## Glider mass
 `configs/default.toml` mass_kg was changed from 5.0 to 1.5 by the user. Results before the 2076-glider work used 5 kg; on the crowded far-town scenario the change makes no measurable difference (+0.003 and +0.001).
+
+## Merge with main; team airframe
+`main` held a separate implementation of the environment plan. The merge keeps floodsim-build's environment, because the planner, scenarios and visualisation depend on it, and drops main's parallel modules (`world`, `flight`, `evaluate`, `commands`, `_viz_episode` and their tests); they remain in main's history.
+
+The team's confirmed inputs from main are applied through a wider `[airframe]` section:
+- 1 m span and 0.237 m² wing;
+- 4.2 N thrust and 10 W payload;
+- battery life quoted at 15 m/s, about 93 Wh;
+- climb speed 15 m/s;
+- 8 km radio range.
+
+The 2076 glider is now the team airframe with the same upgrades: 280 Wh battery, payload 10 → 6 W, endurance 2.5 → 10.9 h. **All results in the README and in site/ predate this change and used the 3.7 m span, 3 km radio glider; they need rerunning on the team airframe.**
+
+## Separation with the team airframe
+The team airframe climbs at only about 3 m/s, so two gliders climbing side by side could not open a vertical gap, which caused breaches on seeds 25 and 42. Three changes fix this:
+- The lower glider of a closing conflict now gets a ceiling 50 m below the upper one (motor off) as well as the upper glider's floor.
+- "Closing" now includes conflicts predicted from the closest point of approach, not only those already within 300 m.
+- Verify orbits within `verify_stack_m` of an earlier verifier are stacked `verify_stack_dz` (40 m) higher.
+
+Result: 0 breaches in 50 eight-glider runs.

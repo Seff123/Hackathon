@@ -59,6 +59,8 @@ configs/default.toml team inputs and overrides
 
 ## Results
 
+> **Note:** the numbers below were produced before the merge with main and used a 3.7 m span glider with a 3 km radio. The team airframe (1 m span, 15 m/s cruise, 93 Wh, 8 km radio) is now the default; rerun `scripts/run_experiments.py`, `python -m floodsim scenarios` and `scripts/run_glider_2076.py` to update them.
+
 Numbers from `scripts/run_experiments.py --trials 10` (results in `results/`, charts in `site/results.html`). Three of the 100 test seeds (20000-20099) were rejected by the scenario checks, leaving 97. Every controller flew the same 97 floods; differences are paired.
 
 **Environment check** (scripted lawnmower, seeds 0-49, 50 episodes, 0 errors): survival of at-risk people 0.808 ± 0.040; flood covers 8.6% of land on average (p10 3.5%, p90 13.3%); mean 10 m wind 3.6 m/s; about 14 thermals per scenario; about 25 false alarms per true detection. No crashes and no separation breaches in 50 eight-drone runs.

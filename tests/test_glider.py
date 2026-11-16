@@ -109,10 +109,14 @@ def test_airframe_config_defaults_and_2076():
     from dataclasses import asdict
     from pathlib import Path
     from floodsim.config import load_config
+    from floodsim.config import AirframeParams
+    # airframe defaults are the GliderParams defaults, so configs without [airframe] are unchanged
+    team = TeamInputs(mass_kg=1.5)
+    assert GliderParams.from_team(team, **asdict(AirframeParams())) == GliderParams.from_team(team)
     cfg = load_config()
-    team = cfg.team
-    assert GliderParams.from_team(team, **asdict(cfg.airframe)) == GliderParams.from_team(team)
+    today = GliderParams.from_team(cfg.team, **asdict(cfg.airframe))
+    assert today.span == 1.0 and abs(today.capacity_wh - 93.0) < 1.0      # team airframe: ~93 Wh at 15 m/s
     c76 = load_config(Path(__file__).resolve().parents[1] / "configs" / "glider_2076.toml")
     gp = GliderParams.from_team(c76.team, **asdict(c76.airframe))
-    assert gp.capacity_wh == 450.0 and gp.level_power_w(13.0) < GliderParams.from_team(team).level_power_w(13.0)
+    assert gp.capacity_wh == 280.0 and gp.level_power_w(15.0) < today.level_power_w(15.0)
     assert c76.sensor.lambda_fa < cfg.sensor.lambda_fa

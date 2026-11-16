@@ -269,7 +269,8 @@ class Autopilot:
 
     # ------------------------------------------------------------------ main step
     def step(self, gs: GliderState, netto: np.ndarray, wind_est: np.ndarray, t: float,
-             sep_dz: np.ndarray | None = None, sep_turn: np.ndarray | None = None):
+             sep_dz: np.ndarray | None = None, sep_turn: np.ndarray | None = None,
+             sep_cap: np.ndarray | None = None):
         """Returns (V_cmd, phi_cmd, tau, events). events: list of (drone, kind, data)."""
         n = self.n
         self._events = []
@@ -283,11 +284,12 @@ class Autopilot:
                 continue
             v, phi, tau = self._step_one(i, gs, float(netto[i]), float(wind_est[i, 0]), float(wind_est[i, 1]), t,
                                          math.nan if sep_dz is None else float(sep_dz[i]),
-                                         False if sep_turn is None else bool(sep_turn[i]), thermal_pos)
+                                         False if sep_turn is None else bool(sep_turn[i]), thermal_pos,
+                                         math.nan if sep_cap is None else float(sep_cap[i]))
             V[i], PHI[i], TAU[i] = v, phi, tau
         return V, PHI, TAU, self._events
 
-    def _step_one(self, i, gs, netto, wu, wv, t, sep_dz, sep_turn, thermal_pos):
+    def _step_one(self, i, gs, netto, wu, wv, t, sep_dz, sep_turn, thermal_pos, sep_cap=math.nan):
         p, gp = self.p, self.gp
         d = self.d[i]
         x, y, z = float(gs.x[i]), float(gs.y[i]), float(gs.z[i])
@@ -411,7 +413,10 @@ class Autopilot:
         elif d.mode == VERIFY:
             R = p.verify_radius
             chi, bank_ff = self._orbit(x, y, d.v_cx, d.v_cy, R, Vnow)
-            v_agl = p.verify_agl
+            # orbits over nearby detections are stacked: one level up per earlier verifier within verify_stack_m
+            level = sum(1 for j in range(i) if self.d[j].mode == VERIFY
+                        and math.hypot(self.d[j].v_cx - d.v_cx, self.d[j].v_cy - d.v_cy) < p.verify_stack_m)
+            v_agl = p.verify_agl + level * p.verify_stack_dz
             Vc, tau = self._hold_agl(x, y, z, psi, Vnow, wu, wv, v_agl, max(d.speed, 13.0))
             dc = math.hypot(x - d.v_cx, y - d.v_cy)
             if abs(dc - R) < 40.0 and abs(hs - v_agl) < 40.0:
@@ -448,6 +453,8 @@ class Autopilot:
                 tau, Vc = 1.0, gp.climb_speed
             else:
                 tau = max(tau, min(max(self.drag(Vc) / gp.thrust_max + 0.05 * (sep_dz + 5.0 - z), 0.0), 1.0))
+        elif not math.isnan(sep_cap) and z > sep_cap - 5.0:
+            tau = 0.0       # lower drone of a closing conflict: motor off, glide while the upper one climbs away
         psi_d = None
         if chi is not None:
             psi_d = self._air_heading(chi, Vc, wu, wv)

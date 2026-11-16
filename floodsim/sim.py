@@ -319,7 +319,7 @@ class Sim:
             # --- separation (vectorised over pairs, outside the base zone)
             sep_dz, sep_turn = self._separation(t)
             # --- autopilot and physics
-            Vc, phic, tau, evs = ap.step(gs, self._netto, est, t, sep_dz, sep_turn)
+            Vc, phic, tau, evs = ap.step(gs, self._netto, est, t, sep_dz, sep_turn, self._sep_cap)
             info = glider_step(gs, Vc, phic, tau, (u, v, w), self.gp, self.table, dt)
             self.energy_used += info.power_w * dt / 3600.0
             self.motor_climb += info.motor_climb
@@ -515,6 +515,7 @@ class Sim:
         app = self.ap_params
         sep_dz = np.full(n, np.nan)
         sep_turn = np.zeros(n, dtype=bool)
+        self._sep_cap = np.full(n, np.nan)   # ceiling for the lower drone of a closing conflict
         vx = gs.x - self._prev_xy[0]
         vy = gs.y - self._prev_xy[1]
         self._prev_xy = (gs.x.copy(), gs.y.copy())
@@ -548,7 +549,8 @@ class Sim:
         keys = [(int(idx[a]), int(idx[b])) for a, b in zip(iu, ju)]
         ongoing = np.array([k in self._conflicts for k in keys]) & (dhp < app.sep_exit_h)
         conflict = new | ongoing
-        closing = dict(zip(keys, (tc > 0) & (dhp < app.sep_h)))
+        # closing: inside sep_h now or predicted to be within the CPA look-ahead (slow climbers need the warning)
+        closing = dict(zip(keys, (tc > 0) & ((dhp < app.sep_h) | (dcpa < app.sep_h))))
         rel = {}
         for k, c in zip(keys, conflict):
             if not c:
@@ -571,6 +573,9 @@ class Sim:
         for k, (upper, lower) in rel.items():
             if closing.get(k, False):
                 dz_ = abs(gs.z[upper] - gs.z[lower])
+                if dz_ < app.sep_dz:            # lower drone stops climbing so the gap can open
+                    cap = gs.z[upper] - app.sep_dz
+                    self._sep_cap[lower] = cap if np.isnan(self._sep_cap[lower]) else min(self._sep_cap[lower], cap)
                 if dz_ < app.sep_v:
                     sep_turn[upper] = True
                 if dz_ < app.breach_v:          # not yet vertically clear: both turn right
